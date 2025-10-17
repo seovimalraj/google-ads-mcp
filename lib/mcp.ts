@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z, ZodDefault, ZodEffects, ZodNullable, ZodObject, ZodOptional } from 'zod';
 import type { ToolError, ToolResponse } from '@/types';
 import { decrypt, EncryptionError } from './crypto';
 import { getAuthToken, kvStatus } from './kv';
@@ -79,31 +79,55 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
   },
 ];
 
+interface HeadersLike {
+  get(name: string): string | null | undefined;
+}
+
+interface McpCallToolResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+  structuredContent?: unknown;
+  _meta?: Record<string, unknown>;
+}
+
 let serverInitialisation: Promise<unknown> | null = null;
 
 async function ensureExternalServer(): Promise<unknown> {
   if (!serverInitialisation) {
     serverInitialisation = (async () => {
       try {
-        const mod: any = await import('@openai/mcp');
-        if (typeof mod?.createServer === 'function') {
-          const server = mod.createServer({
+        const mod: any = await import('@modelcontextprotocol/sdk/server/mcp.js');
+        const McpServer: any = mod?.McpServer ?? mod?.default?.McpServer;
+        if (typeof McpServer === 'function') {
+          const server = new McpServer({
             name: 'google-ads-mcp',
             version: '0.1.0',
           });
-          if (typeof server?.tool === 'function') {
+          if (typeof server?.registerTool === 'function') {
             toolCatalog.forEach((tool) => {
-              server.tool(tool.name, {
-                description: tool.description,
-                handler: async ({ input, context }: { input: unknown; context?: InvocationContext }) =>
-                  invokeTool(tool.name, input, context ?? {}),
-              });
+              const inputSchema = getInputSchemaShape(tool.schema);
+              server.registerTool(
+                tool.name,
+                {
+                  description: tool.description,
+                  ...(inputSchema ? { inputSchema } : {}),
+                },
+                async (...args: unknown[]) => {
+                  const { toolArgs, extra } = extractToolCallbackArgs(args);
+                  const context = extractInvocationContext(extra);
+                  const response = await invokeTool(tool.name, toolArgs, context);
+                  return toCallToolResult(response, tool.name);
+                },
+              );
             });
           }
           return server;
         }
       } catch (error) {
-        console.warn('[mcp] Unable to initialise @openai/mcp HTTP server. Falling back to JSON transport.', error);
+        console.warn(
+          '[mcp] Unable to initialise @modelcontextprotocol/sdk MCP server. Falling back to JSON transport.',
+          error,
+        );
       }
       return null;
     })();
@@ -112,6 +136,114 @@ async function ensureExternalServer(): Promise<unknown> {
 }
 
 void ensureExternalServer();
+
+function getInputSchemaShape(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | undefined {
+  let current: z.ZodTypeAny | undefined = schema;
+  while (current instanceof ZodOptional || current instanceof ZodNullable || current instanceof ZodDefault) {
+    current = current._def.innerType;
+  }
+  if (current instanceof ZodEffects) {
+    current = current._def.schema;
+  }
+  if (current instanceof ZodObject) {
+    return current._def.shape();
+  }
+  return undefined;
+}
+
+function extractToolCallbackArgs(args: unknown[]): { toolArgs: unknown; extra: unknown } {
+  if (args.length === 0) {
+    return { toolArgs: undefined, extra: undefined };
+  }
+  if (args.length === 1) {
+    return { toolArgs: undefined, extra: args[0] };
+  }
+  return { toolArgs: args[0], extra: args[1] };
+}
+
+function extractInvocationContext(extra: unknown): InvocationContext {
+  const headers = extractHeaders(extra);
+  const forwardedFor = headers?.get('x-forwarded-for') ?? headers?.get('x-real-ip');
+  const userAgent = headers?.get('user-agent') ?? undefined;
+  return {
+    ip: pickFirstIp(forwardedFor),
+    userAgent: userAgent ?? undefined,
+  };
+}
+
+function extractHeaders(extra: unknown): HeadersLike | undefined {
+  if (!extra || typeof extra !== 'object') {
+    return undefined;
+  }
+  const requestInfo = (extra as { requestInfo?: { headers?: unknown } }).requestInfo;
+  const headers = requestInfo?.headers;
+  if (!headers) {
+    return undefined;
+  }
+  if (typeof (headers as HeadersLike).get === 'function') {
+    return headers as HeadersLike;
+  }
+  if (typeof headers === 'object') {
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+      if (typeof value === 'string') {
+        normalized[key.toLowerCase()] = value;
+      } else if (Array.isArray(value)) {
+        normalized[key.toLowerCase()] = value.map(String).join(', ');
+      }
+    }
+    return {
+      get(name: string) {
+        return normalized[name.toLowerCase()] ?? null;
+      },
+    };
+  }
+  return undefined;
+}
+
+function pickFirstIp(value: string | null | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const first = value.split(',')[0]?.trim();
+  return first || undefined;
+}
+
+function toCallToolResult(response: ToolResponse, toolName: ToolName): McpCallToolResult {
+  if (response.ok) {
+    const text =
+      typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2) ?? 'Success';
+    const content = text ? [{ type: 'text', text }] : [];
+    const meta = { ...(response.meta ?? {}), tool: toolName };
+    const result: McpCallToolResult = {
+      content,
+      structuredContent: response.data,
+      _meta: meta,
+    };
+    return result;
+  }
+
+  const detailsText = response.error.details !== undefined ? formatDetails(response.error.details) : null;
+  const contentText =
+    `[${response.error.code}] ${response.error.message}` + (detailsText ? `\nDetails: ${detailsText}` : '');
+  return {
+    content: [{ type: 'text', text: contentText }],
+    isError: true,
+    _meta: { tool: toolName, error: response.error },
+  };
+}
+
+function formatDetails(details: unknown): string {
+  if (typeof details === 'string') {
+    return details;
+  }
+  try {
+    const serialized = JSON.stringify(details, null, 2);
+    return serialized ?? String(details);
+  } catch {
+    return String(details);
+  }
+}
 
 async function handleAdsTool<TInput extends KeywordIdeasInput | HistoricalMetricsInput | ForecastInput, TResult>(
   tool: Extract<ToolName, 'get_keyword_ideas' | 'get_historical_metrics' | 'get_forecast'>,
