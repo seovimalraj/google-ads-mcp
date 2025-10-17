@@ -3,7 +3,7 @@ import {
   normalizeKeywordIdeasResponse,
   normalizeHistoricalMetricsResponse,
   normalizeForecastResponse,
-} from '../lib/ads-normalizers.ts';
+} from '../lib/ads-normalizers';
 
 const keywordIdeasResponse = {
   results: [

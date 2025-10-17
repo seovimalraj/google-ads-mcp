@@ -13,8 +13,7 @@ export function normalizeKeywordIdeasResponse(response: unknown): Array<{
 
   return results.map((idea: any) => {
     const metrics = idea?.keywordIdeaMetrics ?? idea?.metrics ?? {};
-    const avgMonthlySearches =
-      metrics?.avgMonthlySearches ?? metrics?.avg_monthly_searches ?? null;
+    const avgMonthlySearches = metrics?.avgMonthlySearches ?? metrics?.avg_monthly_searches ?? null;
     const competitionIndex = metrics?.competitionIndex ?? metrics?.competition_index ?? null;
     const competition = metrics?.competition ?? null;
     const lowTopOfPageBidMicros =
@@ -69,7 +68,7 @@ export function normalizeHistoricalMetricsResponse(response: unknown): Array<{
 
 export function normalizeForecastResponse(
   response: unknown,
-  fallbackKeywords: string[]
+  fallbackKeywords: string[],
 ): Array<{
   keyword: string;
   dailyMetrics: Record<string, unknown>;
@@ -92,12 +91,7 @@ export function normalizeForecastResponse(
       fallbackKeywords[index] ??
       '';
 
-    const metrics =
-      item?.metrics ??
-      item?.metric ??
-      item?.keywordForecastMetrics ??
-      item ??
-      {};
+    const metrics = item?.metrics ?? item?.metric ?? item?.keywordForecastMetrics ?? item ?? {};
 
     const clicks = metrics?.clicksPerDay ?? metrics?.dailyClicks ?? metrics?.clicks ?? null;
     const impressions = metrics?.impressions ?? metrics?.dailyImpressions ?? null;
@@ -131,15 +125,13 @@ export function normalizeForecastResponse(
             campaignMetrics?.dailyClicks ??
             campaignMetrics?.clicks ??
             null,
-          impressions:
-            campaignMetrics?.impressions ?? campaignMetrics?.dailyImpressions ?? null,
+          impressions: campaignMetrics?.impressions ?? campaignMetrics?.dailyImpressions ?? null,
           costMicros:
             campaignMetrics?.costMicros ??
             campaignMetrics?.cost ??
             campaignMetrics?.dailyCostMicros ??
             null,
-          conversions:
-            campaignMetrics?.conversions ?? campaignMetrics?.dailyConversions ?? null,
+          conversions: campaignMetrics?.conversions ?? campaignMetrics?.dailyConversions ?? null,
         },
         weeklyMetrics: campaignMetrics?.weeklyMetrics ?? campaignMetrics?.weekly ?? null,
       });

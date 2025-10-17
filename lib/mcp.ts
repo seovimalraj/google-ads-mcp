@@ -10,11 +10,8 @@ import {
   type ForecastInput,
   type HistoricalMetricsInput,
   type KeywordIdeasInput,
-  assertEnv,
 } from './schemas';
 import { consumeRateLimit } from './ratelimit';
-
-assertEnv();
 
 type ToolName = 'get_keyword_ideas' | 'get_historical_metrics' | 'get_forecast' | 'ping';
 
@@ -63,13 +60,16 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     name: 'get_keyword_ideas',
     description: 'Retrieve keyword ideas from the Google Ads Keyword Planner API.',
     schema: keywordIdeasInputSchema,
-    handler: async (input, context) => handleAdsTool('get_keyword_ideas', input, context, keywordIdeas),
+    handler: async (input, context) =>
+      handleAdsTool('get_keyword_ideas', input, context, keywordIdeas),
   },
   {
     name: 'get_historical_metrics',
-    description: 'Fetch keyword historical metrics such as average monthly searches and bid ranges.',
+    description:
+      'Fetch keyword historical metrics such as average monthly searches and bid ranges.',
     schema: historicalMetricsInputSchema,
-    handler: async (input, context) => handleAdsTool('get_historical_metrics', input, context, historicalMetrics),
+    handler: async (input, context) =>
+      handleAdsTool('get_historical_metrics', input, context, historicalMetrics),
   },
   {
     name: 'get_forecast',
@@ -139,7 +139,11 @@ void ensureExternalServer();
 
 function getInputSchemaShape(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | undefined {
   let current: z.ZodTypeAny | undefined = schema;
-  while (current instanceof ZodOptional || current instanceof ZodNullable || current instanceof ZodDefault) {
+  while (
+    current instanceof ZodOptional ||
+    current instanceof ZodNullable ||
+    current instanceof ZodDefault
+  ) {
     current = current._def.innerType;
   }
   if (current instanceof ZodEffects) {
@@ -212,8 +216,10 @@ function pickFirstIp(value: string | null | undefined): string | undefined {
 function toCallToolResult(response: ToolResponse, toolName: ToolName): McpCallToolResult {
   if (response.ok) {
     const text =
-      typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2) ?? 'Success';
-    const content = text ? [{ type: 'text', text }] : [];
+      typeof response.data === 'string'
+        ? response.data
+        : (JSON.stringify(response.data, null, 2) ?? 'Success');
+    const content: Array<{ type: 'text'; text: string }> = text ? [{ type: 'text', text }] : [];
     const meta = { ...(response.meta ?? {}), tool: toolName };
     const result: McpCallToolResult = {
       content,
@@ -223,9 +229,11 @@ function toCallToolResult(response: ToolResponse, toolName: ToolName): McpCallTo
     return result;
   }
 
-  const detailsText = response.error.details !== undefined ? formatDetails(response.error.details) : null;
+  const detailsText =
+    response.error.details !== undefined ? formatDetails(response.error.details) : null;
   const contentText =
-    `[${response.error.code}] ${response.error.message}` + (detailsText ? `\nDetails: ${detailsText}` : '');
+    `[${response.error.code}] ${response.error.message}` +
+    (detailsText ? `\nDetails: ${detailsText}` : '');
   return {
     content: [{ type: 'text', text: contentText }],
     isError: true,
@@ -245,7 +253,10 @@ function formatDetails(details: unknown): string {
   }
 }
 
-async function handleAdsTool<TInput extends KeywordIdeasInput | HistoricalMetricsInput | ForecastInput, TResult>(
+async function handleAdsTool<
+  TInput extends KeywordIdeasInput | HistoricalMetricsInput | ForecastInput,
+  TResult,
+>(
   tool: Extract<ToolName, 'get_keyword_ideas' | 'get_historical_metrics' | 'get_forecast'>,
   input: TInput,
   context: InvocationContext,
@@ -420,19 +431,22 @@ export async function invokeTool(
     };
   }
 
-  const parsed = tool.schema ? tool.schema.safeParse(input) : { success: true, data: input };
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: {
-        code: 'INVALID_ARGUMENT',
-        message: 'Input validation failed.',
-        details: parsed.error.flatten(),
-      },
-    };
+  if (tool.schema) {
+    const parsed = tool.schema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: {
+          code: 'INVALID_ARGUMENT',
+          message: 'Input validation failed.',
+          details: parsed.error.flatten(),
+        },
+      };
+    }
+    return tool.handler(parsed.data, context);
   }
 
-  return tool.handler(parsed.data, context);
+  return tool.handler(input, context);
 }
 
 export function resolveStatusCode(response: ToolResponse): number {

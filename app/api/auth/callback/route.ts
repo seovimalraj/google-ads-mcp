@@ -93,7 +93,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: 'Google did not return a refresh_token. Ensure "access_type=offline" and "prompt=consent" are used on the start endpoint.',
+        error:
+          'Google did not return a refresh_token. Ensure "access_type=offline" and "prompt=consent" are used on the start endpoint.',
       },
       { status: 400 },
     );

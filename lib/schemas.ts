@@ -90,7 +90,9 @@ export function assertEnv(): Env {
   if (!cachedEnv) {
     const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
-      throw new Error(`Invalid environment configuration: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`);
+      throw new Error(
+        `Invalid environment configuration: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`,
+      );
     }
     cachedEnv = parsed.data;
   }
