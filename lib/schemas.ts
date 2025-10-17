@@ -75,6 +75,10 @@ export const envSchema = z
       .refine((value) => Buffer.from(value, 'base64').length === 32, {
         message: 'ENCRYPTION_KEY must be a base64 string that decodes to 32 bytes.',
       }),
+    REDIS_REST_URL: z.string().optional(),
+    REDIS_REST_TOKEN: z.string().optional(),
+    UPSTASH_REDIS_REST_URL: z.string().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
     KV_REST_API_URL: z.string().optional(),
     KV_REST_API_TOKEN: z.string().optional(),
     KV_REST_API_READ_ONLY_TOKEN: z.string().optional(),

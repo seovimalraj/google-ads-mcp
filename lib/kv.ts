@@ -1,35 +1,43 @@
+import { Redis } from '@upstash/redis';
+
 import { AuthToken } from '@/types';
 
-interface KvConfig {
+interface RedisConfig {
   url: string;
   token: string;
-  readOnlyToken?: string;
 }
 
-interface KvClient {
+interface RedisClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
 }
 
 const memoryStore = new Map<string, AuthToken>();
-let kvClient: KvClient | null = null;
-let kvMode: 'vercel' | 'memory' | null = null;
+let redisClient: RedisClient | null = null;
+let storeMode: 'redis' | 'memory' | null = null;
 
-function createKvClient(): KvClient | null {
-  if (kvClient) {
-    return kvClient;
+function createRedisClient(): RedisClient | null {
+  if (redisClient) {
+    return redisClient;
   }
 
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-  const readOnlyToken = process.env.KV_REST_API_READ_ONLY_TOKEN;
+  const url =
+    process.env.REDIS_REST_URL ??
+    process.env.UPSTASH_REDIS_REST_URL ??
+    process.env.KV_REST_API_URL ??
+    null;
+  const token =
+    process.env.REDIS_REST_TOKEN ??
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    process.env.KV_REST_API_TOKEN ??
+    null;
 
   if (!url || !token) {
-    kvMode = 'memory';
+    storeMode = 'memory';
     console.warn(
-      '[kv] KV_REST_API_URL or KV_REST_API_TOKEN missing. Falling back to in-memory KV. Tokens will not persist across deployments.',
+      '[redis] Redis credentials missing. Falling back to in-memory storage. Tokens will not persist across deployments.',
     );
-    kvClient = {
+    redisClient = {
       async get(key: string) {
         return memoryStore.has(key) ? JSON.stringify(memoryStore.get(key)) : null;
       },
@@ -38,51 +46,31 @@ function createKvClient(): KvClient | null {
         memoryStore.set(key, parsed);
       },
     };
-    return kvClient;
+    return redisClient;
   }
 
-  kvMode = 'vercel';
-  const config: KvConfig = {
+  storeMode = 'redis';
+  const config: RedisConfig = {
     url: url.replace(/\/$/, ''),
     token,
-    readOnlyToken: readOnlyToken || undefined,
   };
 
-  kvClient = {
+  const client = new Redis({ url: config.url, token: config.token });
+
+  redisClient = {
     async get(key: string) {
-      const response = await fetch(`${config.url}/get/${encodeURIComponent(key)}`, {
-        headers: {
-          Authorization: `Bearer ${config.readOnlyToken ?? config.token}`,
-        },
-        cache: 'no-store',
-      });
-      if (response.status === 404) {
-        return null;
+      const result = await client.get<string | null>(key);
+      if (typeof result === 'string') {
+        return result;
       }
-      if (!response.ok) {
-        throw new Error(`KV get failed with status ${response.status}`);
-      }
-      const body = (await response.json()) as { result: string | null };
-      return body.result ?? null;
+      return result ?? null;
     },
     async set(key: string, value: string) {
-      const response = await fetch(`${config.url}/set/${encodeURIComponent(key)}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.token}`,
-          'Content-Type': 'text/plain',
-        },
-        body: value,
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`KV set failed (${response.status}): ${text}`);
-      }
+      await client.set(key, value);
     },
   };
 
-  return kvClient;
+  return redisClient;
 }
 
 function getKvKey(userId: string): string {
@@ -94,9 +82,9 @@ function nowIso(): string {
 }
 
 export async function getAuthToken(userId: string): Promise<AuthToken | null> {
-  const client = createKvClient();
+  const client = createRedisClient();
   const key = getKvKey(userId);
-  if (kvMode === 'memory') {
+  if (storeMode === 'memory') {
     return memoryStore.get(key) ?? null;
   }
 
@@ -107,7 +95,7 @@ export async function getAuthToken(userId: string): Promise<AuthToken | null> {
   try {
     return JSON.parse(raw) as AuthToken;
   } catch (error) {
-    console.error('[kv] Failed to parse auth token payload', { error });
+    console.error('[redis] Failed to parse auth token payload', { error });
     return null;
   }
 }
@@ -125,10 +113,10 @@ export async function setAuthToken(
     updatedAt: nowIso(),
   };
   const key = getKvKey(token.userId);
-  const client = createKvClient();
+  const client = createRedisClient();
   const payload = JSON.stringify(record);
 
-  if (kvMode === 'memory') {
+  if (storeMode === 'memory') {
     memoryStore.set(key, record);
     return record;
   }
@@ -137,7 +125,7 @@ export async function setAuthToken(
   return record;
 }
 
-export function kvStatus(): 'vercel' | 'memory' | null {
-  createKvClient();
-  return kvMode;
+export function kvStatus(): 'redis' | 'memory' | null {
+  createRedisClient();
+  return storeMode;
 }

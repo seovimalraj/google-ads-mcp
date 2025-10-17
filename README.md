@@ -7,7 +7,7 @@ A Next.js App Router deployment that exposes a [Model Context Protocol (MCP)](ht
 - **Next.js 15 App Router** using strict TypeScript, ESLint, and Prettier.
 - **MCP tools** for keyword discovery, historical metrics, and forecasts.
 - **Google OAuth 2.0 flow** with AES-256-GCM encrypted refresh token storage.
-- **KV persistence** via Vercel KV with an automatic in-memory fallback for local development.
+- **Redis persistence** via Upstash Redis (or any REST-compatible endpoint) with an automatic in-memory fallback for local development.
 - **Zod validation** for every tool input plus environment assertions.
 - **Token bucket rate limiting** (10 requests/minute per user/IP).
 - **Structured logging & error mapping** for predictable MCP responses.
@@ -18,7 +18,7 @@ A Next.js App Router deployment that exposes a [Model Context Protocol (MCP)](ht
 - `pnpm` or `npm` for dependency management.
 - A Google Ads Manager account with API access.
 - Google Cloud OAuth client (type: Web application) authorised for the deployment URL.
-- Vercel KV database (or compatible Upstash REST endpoint).
+- Upstash Redis database (or any Redis instance that exposes the Upstash REST API).
 
 ## Environment variables
 
@@ -32,9 +32,10 @@ Create a `.env` file (or configure Vercel project secrets) that includes all var
 | `GADS_DEV_TOKEN` | ✅ | Google Ads developer token approved for production. |
 | `GADS_LOGIN_CUSTOMER_ID` | ⚪️ | Optional manager account ID used for scoped access. |
 | `ENCRYPTION_KEY` | ✅ | Base64 encoded 32-byte key for AES-256-GCM. Generate with `openssl rand -base64 32`. |
-| `KV_REST_API_URL` | ⚪️ | Vercel KV REST endpoint. Omit to use in-memory storage locally. |
-| `KV_REST_API_TOKEN` | ⚪️ | Vercel KV REST token with read/write permissions. |
-| `KV_REST_API_READ_ONLY_TOKEN` | ⚪️ | Optional read-only token for GET operations. |
+| `REDIS_REST_URL` | ⚪️ | Redis REST endpoint (e.g. Upstash). Equivalent to Vercel's `UPSTASH_REDIS_REST_URL`. |
+| `REDIS_REST_TOKEN` | ⚪️ | Redis REST token with read/write permissions. Equivalent to `UPSTASH_REDIS_REST_TOKEN`. |
+| `UPSTASH_REDIS_REST_URL` | ⚪️ | Alternative env key automatically provided by Vercel / Upstash. |
+| `UPSTASH_REDIS_REST_TOKEN` | ⚪️ | Alternative env key automatically provided by Vercel / Upstash. |
 | `NEXT_PUBLIC_APP_NAME` | ✅ | Display name shown on the OAuth confirmation page. |
 | `NEXTAUTH_URL` | ⚪️ | Optional explicit base URL. When omitted the server uses the incoming request origin. |
 
@@ -52,7 +53,7 @@ app/
 lib/
   ads.ts                   # Google Ads client and helpers
   crypto.ts                # AES-256-GCM encrypt/decrypt utilities
-  kv.ts                    # Vercel KV / in-memory abstraction
+  kv.ts                    # Redis (Upstash) / in-memory abstraction
   mcp.ts                   # Tool registration, validation, rate limiting
   ratelimit.ts             # Simple token-bucket implementation
   schemas.ts               # Zod schemas for env + tool payloads
@@ -68,15 +69,15 @@ pnpm dev
 
 The development server defaults to `http://localhost:3000`. Ensure your Google OAuth client has that origin and callback (`http://localhost:3000/api/auth/callback`) added to the authorised redirect URIs.
 
-### Running without Vercel KV
+### Running without Redis
 
-If `KV_REST_API_URL` or `KV_REST_API_TOKEN` is missing the server logs a warning and stores tokens in-memory. This is ideal for local testing but **not** for production because refresh tokens will be lost on redeploys.
+If `REDIS_REST_URL`/`REDIS_REST_TOKEN` (or the Upstash equivalents) are missing the server logs a warning and stores tokens in-memory. This is ideal for local testing but **not** for production because refresh tokens will be lost on redeploys.
 
 ## OAuth flow
 
 1. Direct the browser (or an HTTP client) to `/api/auth/start?userId=<USER>&customerId=<CUSTOMER_ID>`.
 2. Google prompts for consent with the `https://www.googleapis.com/auth/adwords` scope.
-3. On success Google redirects to `/api/auth/callback`. The server exchanges the code for tokens, encrypts the refresh token with AES-256-GCM, and persists it in KV.
+3. On success Google redirects to `/api/auth/callback`. The server exchanges the code for tokens, encrypts the refresh token with AES-256-GCM, and persists it in Redis.
 4. The callback endpoint renders a simple confirmation page. Tokens are now available to all MCP tools via the stored `userId`.
 
 The `state` parameter is encrypted to prevent tampering and includes the user/customer IDs plus a timestamp.
@@ -99,7 +100,7 @@ Result:
 ```json
 {
   "ok": true,
-  "data": { "status": "ok", "kv": "memory" },
+  "data": { "status": "ok", "kv": "redis" },
   "meta": { "ip": "127.0.0.1" }
 }
 ```
@@ -181,7 +182,7 @@ Structured logs (via `console.log` / `console.error`) include tool name, user ID
 ## Deployment on Vercel
 
 1. Push the repository to GitHub and create a Vercel project targeting this repo.
-2. Set the production environment variables listed above. Remember to generate a strong `ENCRYPTION_KEY` and configure KV credentials.
+2. Set the production environment variables listed above. Remember to generate a strong `ENCRYPTION_KEY` and configure Redis credentials.
 3. Deploy. Vercel automatically builds the Next.js app in the Node.js runtime.
 4. After deployment, run the OAuth flow (`https://<app>.vercel.app/api/auth/start?...`) and confirm the callback stores the token (check logs or `/api/mcp` ping).
 5. Smoke test each tool with `curl` or the MCP client using the production URL.
@@ -227,7 +228,7 @@ Expect a JSON array of keyword ideas with text, competition, and bid ranges.
 
 - [x] App Router structure with TypeScript, ESLint, Prettier, and strict mode.
 - [x] OAuth start/callback routes using AES-256-GCM encrypted refresh tokens.
-- [x] KV abstraction with Vercel + in-memory modes.
+- [x] Redis abstraction with Upstash + in-memory modes.
 - [x] Google Ads helpers for keyword ideas, historical metrics, and forecasts.
 - [x] MCP tools with validation, rate limiting, and error handling.
 - [x] README covering setup, usage, deployment, and troubleshooting.
