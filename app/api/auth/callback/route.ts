@@ -107,26 +107,26 @@ export async function GET(request: NextRequest) {
   });
 
   const html = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>${env.NEXT_PUBLIC_APP_NAME ?? 'Ads MCP'} Connected</title>
-    <style>
-      body { font-family: sans-serif; padding: 2rem; background: #f7f7f7; color: #111; }
-      main { max-width: 480px; margin: auto; background: #fff; border-radius: 12px; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
-      h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-      p { margin: 0.25rem 0; }
-      code { background: #f1f1f1; padding: 0.2rem 0.3rem; border-radius: 4px; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Connected</h1>
-      <p>${env.NEXT_PUBLIC_APP_NAME ?? 'Ads MCP'} is now authorized for user <code>${state.userId}</code>.</p>
-      <p>You may close this window and return to the MCP client.</p>
-    </main>
-  </body>
-</html>`;
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <title>${env.NEXT_PUBLIC_APP_NAME ?? 'Ads MCP'} Connected</title>
+      <style>
+        body { font-family: sans-serif; padding: 2rem; background: #f7f7f7; color: #111; }
+        main { max-width: 480px; margin: auto; background: #fff; border-radius: 12px; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        p { margin: 0.25rem 0; }
+        code { background: #f1f1f1; padding: 0.2rem 0.3rem; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <h1>Connected</h1>
+        <p>${env.NEXT_PUBLIC_APP_NAME ?? 'Ads MCP'} is now authorized for user <code>${state.userId}</code>.</p>
+        <p>You may close this window and return to the MCP client.</p>
+      </main>
+    </body>
+  </html>`;
 
   return new Response(html, {
     status: 200,
