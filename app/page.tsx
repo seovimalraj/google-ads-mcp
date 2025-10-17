@@ -157,7 +157,7 @@ export default function HomePage() {
               {oauthExample}
             </a>{' '}
             to complete Google OAuth. The refresh token is encrypted with your{' '}
-            <InlineCode>ENCRYPTION_KEY</InlineCode> and stored in KV.
+            <InlineCode>ENCRYPTION_KEY</InlineCode> and stored in Redis.
           </li>
           <li>
             Add the MCP server URL <InlineCode>{baseUrl}/api/mcp</InlineCode> to your ChatGPT
