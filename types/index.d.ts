@@ -1,11 +1,3 @@
-export interface AuthToken {
-  userId: string;
-  customerId: string;
-  refreshTokenEnc: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface ToolError {
   code: string;
   message: string;
