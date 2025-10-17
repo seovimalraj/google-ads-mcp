@@ -1,19 +1,10 @@
 import { z, ZodDefault, ZodEffects, ZodNullable, ZodObject, ZodOptional } from 'zod';
 import type { ToolError, ToolResponse } from '@/types';
-import { decrypt, EncryptionError } from './crypto';
-import { getAuthToken, kvStatus } from './kv';
-import { keywordIdeas, historicalMetrics, forecast, AdsApiError } from './ads';
-import {
-  forecastInputSchema,
-  historicalMetricsInputSchema,
-  keywordIdeasInputSchema,
-  type ForecastInput,
-  type HistoricalMetricsInput,
-  type KeywordIdeasInput,
-} from './schemas';
+import { fetchAutocompleteSuggestions, fetchTrendIndex, UpstreamError } from './search';
+import { autocompleteInputSchema, trendIndexInputSchema } from './schemas';
 import { consumeRateLimit } from './ratelimit';
 
-type ToolName = 'get_keyword_ideas' | 'get_historical_metrics' | 'get_forecast' | 'ping';
+export type ToolName = 'ping' | 'get_autocomplete_suggestions' | 'get_trend_index';
 
 interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
   name: ToolName;
@@ -27,55 +18,58 @@ interface InvocationContext {
   userAgent?: string;
 }
 
+interface RateLimitMeta {
+  limit: number;
+  remaining: number;
+  reset: number;
+}
+
 const rateLimitCodes: Record<string, number> = {
   RATE_LIMIT_EXCEEDED: 429,
-  QUOTA_EXCEEDED: 429,
   INVALID_ARGUMENT: 400,
   BAD_REQUEST: 400,
-  AUTHENTICATION_ERROR: 401,
-  PERMISSION_DENIED: 403,
   NOT_FOUND: 404,
+  UPSTREAM_ERROR: 502,
 };
 
 const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
   {
     name: 'ping',
     description: 'Health check to confirm the MCP server is reachable.',
-    schema: z.object({ userId: z.string().optional() }).optional(),
-    handler: async (_input, context) => {
-      const kvMode = kvStatus();
-      return {
-        ok: true,
-        data: {
-          status: 'ok',
-          kv: kvMode ?? 'unknown',
-        },
-        meta: {
-          ip: context.ip,
-        },
-      };
-    },
+    schema: z.object({}).optional(),
+    handler: async (_input, context) => ({
+      ok: true,
+      data: {
+        status: 'ok',
+      },
+      meta: {
+        ip: context.ip,
+      },
+    }),
   },
   {
-    name: 'get_keyword_ideas',
-    description: 'Retrieve keyword ideas from the Google Ads Keyword Planner API.',
-    schema: keywordIdeasInputSchema,
+    name: 'get_autocomplete_suggestions',
+    description: 'Return Google Autocomplete suggestions for the provided query.',
+    schema: autocompleteInputSchema,
     handler: async (input, context) =>
-      handleAdsTool('get_keyword_ideas', input, context, keywordIdeas),
+      executeWithRateLimit('get_autocomplete_suggestions', context, async () =>
+        fetchAutocompleteSuggestions(input.query),
+      ),
   },
   {
-    name: 'get_historical_metrics',
-    description:
-      'Fetch keyword historical metrics such as average monthly searches and bid ranges.',
-    schema: historicalMetricsInputSchema,
+    name: 'get_trend_index',
+    description: 'Fetch Google Trends interest-over-time data for the supplied keyword.',
+    schema: trendIndexInputSchema,
     handler: async (input, context) =>
-      handleAdsTool('get_historical_metrics', input, context, historicalMetrics),
-  },
-  {
-    name: 'get_forecast',
-    description: 'Generate campaign forecasts for the supplied keyword set.',
-    schema: forecastInputSchema,
-    handler: async (input, context) => handleAdsTool('get_forecast', input, context, forecast),
+      executeWithRateLimit('get_trend_index', context, async () =>
+        fetchTrendIndex({
+          keyword: input.keyword,
+          geo: input.geo,
+          timeRange: input.timeRange,
+          category: input.category,
+          property: input.property,
+        }),
+      ),
   },
 ];
 
@@ -100,8 +94,8 @@ async function ensureExternalServer(): Promise<unknown> {
         const McpServer: any = mod?.McpServer ?? mod?.default?.McpServer;
         if (typeof McpServer === 'function') {
           const server = new McpServer({
-            name: 'google-ads-mcp',
-            version: '0.1.0',
+            name: 'google-search-mcp',
+            version: '0.2.0',
           });
           if (typeof server?.registerTool === 'function') {
             toolCatalog.forEach((tool) => {
@@ -253,109 +247,84 @@ function formatDetails(details: unknown): string {
   }
 }
 
-async function handleAdsTool<
-  TInput extends KeywordIdeasInput | HistoricalMetricsInput | ForecastInput,
-  TResult,
->(
-  tool: Extract<ToolName, 'get_keyword_ideas' | 'get_historical_metrics' | 'get_forecast'>,
-  input: TInput,
+async function executeWithRateLimit<T>(
+  tool: ToolName,
   context: InvocationContext,
-  executor: (args: TInput & { refreshToken: string }) => Promise<TResult>,
-): Promise<ToolResponse<TResult>> {
-  const rateKey = input.userId ?? context.ip ?? 'anonymous';
-  const rate = consumeRateLimit(`tool:${tool}:${rateKey}`);
-  if (!rate.success) {
-    return {
-      ok: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: 'Too many requests. Please retry later.',
-        details: {
-          limit: rate.limit,
-          remaining: rate.remaining,
-          reset: rate.reset,
-        },
-      },
-    };
+  executor: () => Promise<T>,
+): Promise<ToolResponse<T>> {
+  const rateOutcome = applyRateLimit(tool, context);
+  if (!rateOutcome.success) {
+    return rateOutcome.response;
   }
 
   try {
-    const tokenRecord = await getAuthToken(input.userId);
-    if (!tokenRecord) {
-      return {
-        ok: false,
-        error: {
-          code: 'AUTHENTICATION_ERROR',
-          message: 'No refresh token found for the supplied userId. Complete the OAuth flow.',
-        },
-      };
-    }
-
-    let refreshToken: string;
-    try {
-      refreshToken = decrypt(tokenRecord.refreshTokenEnc);
-    } catch (error) {
-      if (error instanceof EncryptionError) {
-        return {
-          ok: false,
-          error: {
-            code: 'AUTHENTICATION_ERROR',
-            message: 'Stored credentials are corrupted or encrypted with a different key.',
-            details: { cause: error.message },
-          },
-        };
-      }
-      throw error;
-    }
-
     const started = Date.now();
-    const data = await executor({ ...input, refreshToken });
+    const data = await executor();
     const duration = Date.now() - started;
-
-    log('info', `${tool} success`, {
-      userId: input.userId,
-      customerId: input.customerId,
-      duration,
-      ip: context.ip,
-      tool,
-    });
 
     return {
       ok: true,
       data,
       meta: {
         durationMs: duration,
-        rateLimit: {
-          limit: rate.limit,
-          remaining: rate.remaining,
-          reset: rate.reset,
-        },
+        rateLimit: rateOutcome.meta,
       },
     };
   } catch (error) {
-    const toolError = toToolError(error);
-    log('error', `${tool} failure`, {
-      userId: input.userId,
-      customerId: input.customerId,
-      tool,
-      code: toolError.code,
-      message: toolError.message,
-      details: toolError.details,
-    });
     return {
       ok: false,
-      error: toolError,
+      error: toToolError(error),
     };
   }
 }
 
-function toToolError(error: unknown): ToolError {
-  if (error instanceof AdsApiError) {
-    const normalized = normalizeErrorCode(error.code);
+function applyRateLimit(
+  tool: ToolName,
+  context: InvocationContext,
+  weight = 1,
+): { success: true; meta: RateLimitMeta } | { success: false; response: ToolResponse<never> } {
+  const keyParts = [tool, context.ip, context.userAgent].filter(Boolean) as string[];
+  const key = keyParts.join(':') || `anonymous:${tool}`;
+  const rate = consumeRateLimit(`tool:${key}`, weight);
+
+  if (!rate.success) {
     return {
-      code: normalized,
+      success: false,
+      response: {
+        ok: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many requests. Please retry later.',
+          details: {
+            limit: rate.limit,
+            remaining: rate.remaining,
+            reset: rate.reset,
+          },
+        },
+      },
+    };
+  }
+
+  return {
+    success: true,
+    meta: {
+      limit: rate.limit,
+      remaining: rate.remaining,
+      reset: rate.reset,
+    },
+  };
+}
+
+function toToolError(error: unknown): ToolError {
+  if (error instanceof UpstreamError) {
+    return {
+      code: 'UPSTREAM_ERROR',
       message: error.message,
-      details: error.details,
+      details: {
+        service: error.service,
+        status: error.status,
+        ...(error.details ? { details: error.details } : {}),
+      },
     };
   }
   if (error instanceof z.ZodError) {
@@ -365,50 +334,16 @@ function toToolError(error: unknown): ToolError {
       details: error.flatten(),
     };
   }
-  if (error instanceof EncryptionError) {
+  if (error instanceof Error) {
     return {
-      code: 'AUTHENTICATION_ERROR',
+      code: 'UNKNOWN',
       message: error.message,
     };
   }
-  const message = error instanceof Error ? error.message : 'Unexpected error occurred.';
   return {
     code: 'UNKNOWN',
-    message,
+    message: 'Unexpected error occurred.',
   };
-}
-
-function normalizeErrorCode(code: string): string {
-  const normalized = code?.toUpperCase() ?? 'UNKNOWN';
-  if (normalized.includes('AUTH')) {
-    return 'AUTHENTICATION_ERROR';
-  }
-  if (normalized.includes('PERMISSION')) {
-    return 'PERMISSION_DENIED';
-  }
-  if (normalized.includes('QUOTA') || normalized.includes('RATE')) {
-    return 'QUOTA_EXCEEDED';
-  }
-  if (normalized.includes('ARGUMENT') || normalized.includes('INVALID')) {
-    return 'INVALID_ARGUMENT';
-  }
-  if (normalized.includes('NOT_FOUND')) {
-    return 'NOT_FOUND';
-  }
-  return normalized || 'UNKNOWN';
-}
-
-function log(level: 'info' | 'error', message: string, meta?: Record<string, unknown>): void {
-  const payload = {
-    level,
-    message,
-    ...meta,
-  };
-  if (level === 'error') {
-    console.error('[mcp]', payload);
-  } else {
-    console.log('[mcp]', payload);
-  }
 }
 
 export function listTools(): Array<{ name: ToolName; description: string }> {

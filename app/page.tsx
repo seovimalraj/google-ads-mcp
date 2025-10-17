@@ -100,7 +100,7 @@ const rawBaseUrl = process.env.NEXTAUTH_URL?.trim();
 const baseUrlSource =
   rawBaseUrl && rawBaseUrl.length > 0 ? rawBaseUrl : 'https://your-app.vercel.app';
 const baseUrl = baseUrlSource.replace(/\/$/, '');
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? 'Google Ads MCP Server';
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? 'Google Search MCP Server';
 
 function InlineCode({ children }: { children: ReactNode }) {
   return (
@@ -120,48 +120,32 @@ function InlineCode({ children }: { children: ReactNode }) {
 }
 
 export default function HomePage() {
-  const oauthExample = `${baseUrl}/api/auth/start?userId=demo&customerId=1234567890`;
-
   return (
     <main style={containerStyle}>
       <div style={accentStyle}>
         <span role="img" aria-hidden="true">
-          🚀
+          🔍
         </span>
-        Ready for ChatGPT MCP
+        SEO research toolkit for MCP
       </div>
 
       <h1 style={headingStyle}>{appName}</h1>
       <p style={subheadingStyle}>
-        This deployment exposes a secure Model Context Protocol server backed by the Google Ads
-        Keyword Planner. Use the built-in OAuth flow to store encrypted refresh tokens and call the
-        keyword, metrics, or forecast tools from ChatGPT or any MCP-compatible client.
+        This deployment exposes a Model Context Protocol server with two lightweight tools sourced
+        directly from Google. Pull live autocomplete suggestions and Google Trends indices without
+        OAuth or external databases—perfect for keyword discovery inside ChatGPT Developer Mode.
       </p>
 
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Quick start</h2>
         <ol style={listStyle}>
           <li>
-            Provide the required environment variables (see{' '}
-            <a
-              style={linkStyle}
-              href="https://github.com/openai/google-ads-mcp/blob/main/.env.example"
-            >
-              .env.example
-            </a>
-            ) and redeploy if you update any secrets.
+            Deploy or run locally with <InlineCode>pnpm dev</InlineCode> (Node.js 18.18+).
           </li>
+          <li>No credentials needed—Autocomplete and Trends rely on public endpoints.</li>
           <li>
-            Visit{' '}
-            <a style={linkStyle} href={oauthExample}>
-              {oauthExample}
-            </a>{' '}
-            to complete Google OAuth. The refresh token is encrypted with your{' '}
-            <InlineCode>ENCRYPTION_KEY</InlineCode> and stored in Redis.
-          </li>
-          <li>
-            Add the MCP server URL <InlineCode>{baseUrl}/api/mcp</InlineCode> to your ChatGPT
-            configuration. Use the sample payloads below to verify each tool.
+            Add the MCP server URL <InlineCode>{baseUrl}/api/mcp</InlineCode> to ChatGPT Developer
+            Mode and invoke the sample payloads below.
           </li>
         </ol>
       </section>
@@ -175,7 +159,7 @@ export default function HomePage() {
         <pre style={codeStyle}>
           {`{
   "status": "ok",
-  "tools": ["ping", "get_keyword_ideas", "get_historical_metrics", "get_forecast"]
+  "tools": ["ping", "get_autocomplete_suggestions", "get_trend_index"]
 }`}
         </pre>
       </section>
@@ -197,28 +181,21 @@ export default function HomePage() {
               <td style={tdStyle}>
                 <pre style={codeStyle}>
                   {`{
-  "tool": "ping",
-  "input": { "userId": "demo" }
+  "tool": "ping"
 }`}
                 </pre>
               </td>
             </tr>
             <tr>
               <td style={tdStyle}>
-                <strong>Keyword ideas</strong>
+                <strong>Autocomplete suggestions</strong>
               </td>
               <td style={tdStyle}>
                 <pre style={codeStyle}>
                   {`{
-  "tool": "get_keyword_ideas",
+  "tool": "get_autocomplete_suggestions",
   "input": {
-    "userId": "demo",
-    "customerId": "1234567890",
-    "keywords": ["toroidal transformer"],
-    "locationIds": ["2356"],
-    "languageId": "1000",
-    "network": "GOOGLE_SEARCH_AND_PARTNERS",
-    "pageSize": 30
+    "query": "toroidal transformer"
   }
 }`}
                 </pre>
@@ -226,39 +203,16 @@ export default function HomePage() {
             </tr>
             <tr>
               <td style={tdStyle}>
-                <strong>Historical metrics</strong>
+                <strong>Trend index</strong>
               </td>
               <td style={tdStyle}>
                 <pre style={codeStyle}>
                   {`{
-  "tool": "get_historical_metrics",
+  "tool": "get_trend_index",
   "input": {
-    "userId": "demo",
-    "customerId": "1234567890",
-    "keywords": ["toroidal transformer"],
-    "locationIds": ["2356"],
-    "languageId": "1000"
-  }
-}`}
-                </pre>
-              </td>
-            </tr>
-            <tr>
-              <td style={tdStyle}>
-                <strong>Forecast</strong>
-              </td>
-              <td style={tdStyle}>
-                <pre style={codeStyle}>
-                  {`{
-  "tool": "get_forecast",
-  "input": {
-    "userId": "demo",
-    "customerId": "1234567890",
-    "keywords": ["toroidal transformer"],
-    "locationIds": ["2356"],
-    "languageId": "1000",
-    "cpcBidMicros": 1500000,
-    "dailyBudgetMicros": 2500000
+    "keyword": "toroidal transformer",
+    "timeRange": "today 12-m",
+    "geo": "US"
   }
 }`}
                 </pre>
@@ -272,7 +226,7 @@ export default function HomePage() {
         <h2 style={sectionTitleStyle}>Need help?</h2>
         <p>
           Check the{' '}
-          <a style={linkStyle} href="https://github.com/openai/google-ads-mcp">
+          <a style={linkStyle} href="https://github.com/openai/google-search-mcp">
             project README
           </a>{' '}
           for setup details, troubleshooting steps, and deployment tips.
