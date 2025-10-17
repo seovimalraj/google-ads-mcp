@@ -1,6 +1,9 @@
 import { GoogleAdsApi } from 'google-ads-api';
+import { normalizeForecastResponse, normalizeHistoricalMetricsResponse, normalizeKeywordIdeasResponse } from './ads-normalizers';
 import type { ForecastInput, HistoricalMetricsInput, KeywordIdeasInput } from './schemas';
 import { assertEnv } from './schemas';
+
+export { normalizeForecastResponse, normalizeHistoricalMetricsResponse, normalizeKeywordIdeasResponse } from './ads-normalizers';
 
 export class AdsApiError extends Error {
   constructor(public readonly code: string, message: string, public readonly details?: unknown) {
@@ -86,6 +89,8 @@ function toLanguageConstant(id: string): string {
   return id.startsWith('languageConstants/') ? id : `languageConstants/${id}`;
 }
 
+const DEFAULT_FORECAST_CPC_MICROS = 1_000_000;
+
 export async function keywordIdeas(
   input: KeywordIdeasInput & { refreshToken: string }
 ): Promise<
@@ -112,30 +117,16 @@ export async function keywordIdeas(
     if (input.pageSize) {
       request.pageSize = input.pageSize;
     }
-    if (input.keywords && input.keywords.length > 0) {
+    if (input.keywords && input.keywords.length > 0 && input.urlSeed) {
+      request.keywordAndUrlSeed = { keywords: input.keywords, url: input.urlSeed };
+    } else if (input.keywords && input.keywords.length > 0) {
       request.keywordSeed = { keywords: input.keywords };
-    }
-    if (input.urlSeed) {
+    } else if (input.urlSeed) {
       request.urlSeed = { url: input.urlSeed };
     }
 
-    const ideas = await (customer.keywordPlans.generateKeywordIdeas as any)(request);
-    return (ideas || []).map((idea: any) => {
-      const metrics = idea.keywordIdeaMetrics ?? idea.metrics ?? {};
-      return {
-        text: idea.text ?? idea.keyword ?? idea.keywordIdea ?? '',
-        metrics: {
-          avgMonthlySearches: metrics.avgMonthlySearches ?? metrics.avg_monthly_searches ?? null,
-          competitionIndex: metrics.competitionIndex ?? metrics.competition_index ?? null,
-          competition: metrics.competition ?? null,
-          lowTopOfPageBidMicros: metrics.lowTopOfPageBidMicros ?? metrics.low_top_of_page_bid_micros ?? null,
-          highTopOfPageBidMicros: metrics.highTopOfPageBidMicros ?? metrics.high_top_of_page_bid_micros ?? null,
-        },
-        competition: metrics.competition ?? null,
-        lowTopOfPageBidMicros: metrics.lowTopOfPageBidMicros ?? metrics.low_top_of_page_bid_micros ?? null,
-        highTopOfPageBidMicros: metrics.highTopOfPageBidMicros ?? metrics.high_top_of_page_bid_micros ?? null,
-      };
-    });
+    const ideas = await (customer.keywordPlanIdeas.generateKeywordIdeas as any)(request);
+    return normalizeKeywordIdeasResponse(ideas);
   } catch (error) {
     throw mapGoogleError('get_keyword_ideas', error);
   }
@@ -153,24 +144,18 @@ export async function historicalMetrics(
   try {
     const request: Record<string, unknown> = {
       customerId: input.customerId,
-      keywordPlanNetwork: input.network,
       keywords: input.keywords,
       geoTargetConstants: input.locationIds.map(toGeoTargetConstant),
       language: toLanguageConstant(input.languageId),
+      includeAdultKeywords: false,
     };
 
-    const response = await (customer.keywordPlanIdeas.generateHistoricalMetrics as any)(request);
-    const metrics = Array.isArray(response?.metrics) ? response.metrics : response;
-    return (metrics || []).map((item: any) => ({
-      text: item.text ?? item.keyword ?? '',
-      metrics: {
-        avgMonthlySearches: item.metrics?.avgMonthlySearches ?? item.metrics?.avg_monthly_searches ?? null,
-        competition: item.metrics?.competition ?? null,
-        competitionIndex: item.metrics?.competitionIndex ?? item.metrics?.competition_index ?? null,
-        lowTopOfPageBidMicros: item.metrics?.lowTopOfPageBidMicros ?? item.metrics?.low_top_of_page_bid_micros ?? null,
-        highTopOfPageBidMicros: item.metrics?.highTopOfPageBidMicros ?? item.metrics?.high_top_of_page_bid_micros ?? null,
-      },
-    }));
+    if (input.network) {
+      request.keywordPlanNetwork = input.network;
+    }
+
+    const response = await (customer.keywordPlanIdeas.generateKeywordHistoricalMetrics as any)(request);
+    return normalizeHistoricalMetricsResponse(response);
   } catch (error) {
     throw mapGoogleError('get_historical_metrics', error);
   }
@@ -187,34 +172,45 @@ export async function forecast(
 > {
   const customer = getCustomerInstance({ customerId: input.customerId, refreshToken: input.refreshToken });
   try {
-    const campaign = {
-      cpcBidMicros: input.cpcBidMicros,
-      dailyBudgetMicros: input.dailyBudgetMicros,
-      keywordPlanNetwork: input.network,
-      geoTargets: input.locationIds.map(toGeoTargetConstant),
-      language: toLanguageConstant(input.languageId),
+    const manualCpcBidMicros = input.cpcBidMicros ?? DEFAULT_FORECAST_CPC_MICROS;
+
+    const request: Record<string, unknown> = {
+      customerId: input.customerId,
+      forecastPeriod:
+        input.startDate || input.endDate
+          ? { startDate: input.startDate, endDate: input.endDate }
+          : undefined,
+      campaign: {
+        languageConstants: [toLanguageConstant(input.languageId)],
+        geoModifiers: input.locationIds.map((id) => ({ geoTargetConstant: toGeoTargetConstant(id) })),
+        keywordPlanNetwork: input.network ?? 'GOOGLE_SEARCH_AND_PARTNERS',
+        biddingStrategy: {
+          manualCpcBiddingStrategy: {
+            maxCpcBidMicros: manualCpcBidMicros,
+            dailyBudgetMicros: input.dailyBudgetMicros,
+          },
+        },
+        adGroups: [
+          {
+            biddableKeywords: input.keywords.map((keyword) => {
+              const entry: Record<string, unknown> = {
+                keyword: {
+                  text: keyword,
+                  matchType: 'BROAD',
+                },
+              };
+              if (input.cpcBidMicros) {
+                entry.maxCpcBidMicros = input.cpcBidMicros;
+              }
+              return entry;
+            }),
+          },
+        ],
+      },
     };
 
-    const plan = await (customer.keywordPlans.generateForecastMetrics as any)({
-      customerId: input.customerId,
-      plan: {
-        campaign,
-        keywords: input.keywords,
-        forecastPeriod: input.startDate || input.endDate ? { startDate: input.startDate, endDate: input.endDate } : undefined,
-      },
-    });
-
-    const forecastMetrics = Array.isArray(plan?.keywords) ? plan.keywords : plan;
-    return (forecastMetrics || []).map((item: any) => ({
-      keyword: item.keyword ?? item.text ?? '',
-      dailyMetrics: {
-        clicks: item.metrics?.clicks ?? item.metrics?.clicksPerDay ?? null,
-        impressions: item.metrics?.impressions ?? null,
-        costMicros: item.metrics?.costMicros ?? item.metrics?.cost_micros ?? null,
-        conversions: item.metrics?.conversions ?? null,
-      },
-      weeklyMetrics: item.metrics?.weeklyMetrics ?? null,
-    }));
+    const response = await (customer.keywordPlanIdeas.generateKeywordForecastMetrics as any)(request);
+    return normalizeForecastResponse(response, input.keywords);
   } catch (error) {
     throw mapGoogleError('get_forecast', error);
   }
