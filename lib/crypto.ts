@@ -4,7 +4,10 @@ const AES_ALGO = 'aes-256-gcm';
 const IV_LENGTH = 12; // recommended for GCM
 
 class EncryptionError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+  ) {
     super(message);
     this.name = 'EncryptionError';
   }
@@ -19,7 +22,9 @@ function getEncryptionKey(): Buffer {
 
   const rawKey = process.env.ENCRYPTION_KEY;
   if (!rawKey) {
-    throw new EncryptionError('Missing ENCRYPTION_KEY environment variable. Provide a base64 encoded 32-byte key.');
+    throw new EncryptionError(
+      'Missing ENCRYPTION_KEY environment variable. Provide a base64 encoded 32-byte key.',
+    );
   }
 
   let decoded: Buffer;
@@ -81,7 +86,10 @@ export function decrypt(payload: string): string {
     if (error instanceof EncryptionError) {
       throw error;
     }
-    throw new EncryptionError('Unable to decrypt payload. It may be corrupted or the key is invalid.', error);
+    throw new EncryptionError(
+      'Unable to decrypt payload. It may be corrupted or the key is invalid.',
+      error,
+    );
   }
 }
 

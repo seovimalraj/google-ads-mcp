@@ -26,7 +26,9 @@ function createKvClient(): KvClient | null {
 
   if (!url || !token) {
     kvMode = 'memory';
-    console.warn('[kv] KV_REST_API_URL or KV_REST_API_TOKEN missing. Falling back to in-memory KV. Tokens will not persist across deployments.');
+    console.warn(
+      '[kv] KV_REST_API_URL or KV_REST_API_TOKEN missing. Falling back to in-memory KV. Tokens will not persist across deployments.',
+    );
     kvClient = {
       async get(key: string) {
         return memoryStore.has(key) ? JSON.stringify(memoryStore.get(key)) : null;
@@ -110,7 +112,10 @@ export async function getAuthToken(userId: string): Promise<AuthToken | null> {
   }
 }
 
-export async function setAuthToken(token: Omit<AuthToken, 'createdAt' | 'updatedAt'> & Partial<Pick<AuthToken, 'createdAt' | 'updatedAt'>>): Promise<AuthToken> {
+export async function setAuthToken(
+  token: Omit<AuthToken, 'createdAt' | 'updatedAt'> &
+    Partial<Pick<AuthToken, 'createdAt' | 'updatedAt'>>,
+): Promise<AuthToken> {
   const existing = await getAuthToken(token.userId);
   const record: AuthToken = {
     userId: token.userId,

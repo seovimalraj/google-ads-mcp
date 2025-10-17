@@ -24,6 +24,7 @@ A Next.js App Router deployment that exposes a [Model Context Protocol (MCP)](ht
 
 Create a `.env` file (or configure Vercel project secrets) that includes all variables from `.env.example`.
 
+<!-- prettier-ignore -->
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GADS_CLIENT_ID` | ✅ | OAuth client ID created in Google Cloud Console. |
@@ -212,6 +213,7 @@ Expect a JSON array of keyword ideas with text, competition, and bid ranges.
 
 ## Troubleshooting
 
+<!-- prettier-ignore -->
 | Symptom | Resolution |
 |---------|------------|
 | `Invalid environment configuration` error on boot | Verify `.env` matches `.env.example` and the encryption key is 32 bytes base64. |
@@ -230,3 +232,22 @@ Expect a JSON array of keyword ideas with text, competition, and bid ranges.
 - [x] MCP tools with validation, rate limiting, and error handling.
 - [x] README covering setup, usage, deployment, and troubleshooting.
 
+## Build Fix Notes
+
+### ESLint/Prettier
+
+- Installed: eslint, prettier, eslint-plugin-prettier, eslint-config-prettier, @typescript-eslint/parser, @typescript-eslint/eslint-plugin.
+- .eslintrc.cjs uses `plugin:prettier/recommended`.
+
+### Google Ads Client
+
+- Use `customer_id` (snake_case) in CustomerOptions.
+- Keep other options snake_case: `login_customer_id`, `refresh_token`.
+
+### Telemetry
+
+- Optional: set `NEXT_TELEMETRY_DISABLED=1` to silence logs.
+
+### Commands
+
+- `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm build`.

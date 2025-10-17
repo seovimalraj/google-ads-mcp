@@ -1,12 +1,24 @@
 import { GoogleAdsApi } from 'google-ads-api';
-import { normalizeForecastResponse, normalizeHistoricalMetricsResponse, normalizeKeywordIdeasResponse } from './ads-normalizers';
+import {
+  normalizeForecastResponse,
+  normalizeHistoricalMetricsResponse,
+  normalizeKeywordIdeasResponse,
+} from './ads-normalizers';
 import type { ForecastInput, HistoricalMetricsInput, KeywordIdeasInput } from './schemas';
 import { assertEnv } from './schemas';
 
-export { normalizeForecastResponse, normalizeHistoricalMetricsResponse, normalizeKeywordIdeasResponse } from './ads-normalizers';
+export {
+  normalizeForecastResponse,
+  normalizeHistoricalMetricsResponse,
+  normalizeKeywordIdeasResponse,
+} from './ads-normalizers';
 
 export class AdsApiError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: unknown) {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
     super(message);
     this.name = 'AdsApiError';
   }
@@ -72,7 +84,7 @@ function getCustomerInstance({ customerId, refreshToken }: CustomerOptions): Cus
     const env = assertEnv();
     const googleAds = getClient();
     return googleAds.Customer({
-      customer_account_id: customerId,
+      customer_id: customerId,
       login_customer_id: env.GADS_LOGIN_CUSTOMER_ID || undefined,
       refresh_token: refreshToken,
     });
@@ -91,9 +103,7 @@ function toLanguageConstant(id: string): string {
 
 const DEFAULT_FORECAST_CPC_MICROS = 1_000_000;
 
-export async function keywordIdeas(
-  input: KeywordIdeasInput & { refreshToken: string }
-): Promise<
+export async function keywordIdeas(input: KeywordIdeasInput & { refreshToken: string }): Promise<
   Array<{
     text: string;
     metrics: Record<string, unknown>;
@@ -102,7 +112,10 @@ export async function keywordIdeas(
     highTopOfPageBidMicros: number | null;
   }>
 > {
-  const customer = getCustomerInstance({ customerId: input.customerId, refreshToken: input.refreshToken });
+  const customer = getCustomerInstance({
+    customerId: input.customerId,
+    refreshToken: input.refreshToken,
+  });
   try {
     const request: Record<string, unknown> = {
       customerId: input.customerId,
@@ -133,14 +146,17 @@ export async function keywordIdeas(
 }
 
 export async function historicalMetrics(
-  input: HistoricalMetricsInput & { refreshToken: string }
+  input: HistoricalMetricsInput & { refreshToken: string },
 ): Promise<
   Array<{
     text: string;
     metrics: Record<string, unknown>;
   }>
 > {
-  const customer = getCustomerInstance({ customerId: input.customerId, refreshToken: input.refreshToken });
+  const customer = getCustomerInstance({
+    customerId: input.customerId,
+    refreshToken: input.refreshToken,
+  });
   try {
     const request: Record<string, unknown> = {
       customerId: input.customerId,
@@ -154,23 +170,26 @@ export async function historicalMetrics(
       request.keywordPlanNetwork = input.network;
     }
 
-    const response = await (customer.keywordPlanIdeas.generateKeywordHistoricalMetrics as any)(request);
+    const response = await (customer.keywordPlanIdeas.generateKeywordHistoricalMetrics as any)(
+      request,
+    );
     return normalizeHistoricalMetricsResponse(response);
   } catch (error) {
     throw mapGoogleError('get_historical_metrics', error);
   }
 }
 
-export async function forecast(
-  input: ForecastInput & { refreshToken: string }
-): Promise<
+export async function forecast(input: ForecastInput & { refreshToken: string }): Promise<
   Array<{
     keyword: string;
     dailyMetrics: Record<string, unknown>;
     weeklyMetrics: Record<string, unknown> | null;
   }>
 > {
-  const customer = getCustomerInstance({ customerId: input.customerId, refreshToken: input.refreshToken });
+  const customer = getCustomerInstance({
+    customerId: input.customerId,
+    refreshToken: input.refreshToken,
+  });
   try {
     const manualCpcBidMicros = input.cpcBidMicros ?? DEFAULT_FORECAST_CPC_MICROS;
 
@@ -182,7 +201,9 @@ export async function forecast(
           : undefined,
       campaign: {
         languageConstants: [toLanguageConstant(input.languageId)],
-        geoModifiers: input.locationIds.map((id) => ({ geoTargetConstant: toGeoTargetConstant(id) })),
+        geoModifiers: input.locationIds.map((id) => ({
+          geoTargetConstant: toGeoTargetConstant(id),
+        })),
         keywordPlanNetwork: input.network ?? 'GOOGLE_SEARCH_AND_PARTNERS',
         biddingStrategy: {
           manualCpcBiddingStrategy: {
@@ -209,7 +230,9 @@ export async function forecast(
       },
     };
 
-    const response = await (customer.keywordPlanIdeas.generateKeywordForecastMetrics as any)(request);
+    const response = await (customer.keywordPlanIdeas.generateKeywordForecastMetrics as any)(
+      request,
+    );
     return normalizeForecastResponse(response, input.keywords);
   } catch (error) {
     throw mapGoogleError('get_forecast', error);

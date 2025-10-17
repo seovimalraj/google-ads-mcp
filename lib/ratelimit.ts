@@ -14,7 +14,12 @@ const buckets = new Map<string, BucketState>();
 const DEFAULT_LIMIT = 10;
 const DEFAULT_WINDOW_MS = 60_000;
 
-export function consumeRateLimit(key: string, weight = 1, limit = DEFAULT_LIMIT, windowMs = DEFAULT_WINDOW_MS): RateLimitResult {
+export function consumeRateLimit(
+  key: string,
+  weight = 1,
+  limit = DEFAULT_LIMIT,
+  windowMs = DEFAULT_WINDOW_MS,
+): RateLimitResult {
   const now = Date.now();
   const bucket = buckets.get(key) ?? { tokens: limit, updatedAt: now };
   const elapsed = now - bucket.updatedAt;
