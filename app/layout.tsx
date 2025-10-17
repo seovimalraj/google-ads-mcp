@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'Google Ads MCP Server',
+  title: 'Google Search MCP Server',
   description:
-    'Model Context Protocol server for Google Ads keyword discovery, historical metrics, and forecasts.',
+    'Model Context Protocol server offering Google Autocomplete suggestions and Google Trends interest indices.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
