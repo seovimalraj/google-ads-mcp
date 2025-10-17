@@ -1,0 +1,32 @@
+{
+  "name": "google-ads-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@openai/mcp": "^0.1.2",
+    "google-ads-api": "^17.1.0",
+    "next": "15.0.0-canary.53",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "15.0.0-canary.53",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}
