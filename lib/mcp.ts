@@ -4,6 +4,15 @@ import { fetchAutocompleteSuggestions, fetchTrendIndex, UpstreamError } from './
 import { autocompleteInputSchema, trendIndexInputSchema } from './schemas';
 import { consumeRateLimit } from './ratelimit';
 
+type JsonSchemaObject = {
+  type: 'object';
+  properties?: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+  description?: string;
+  [key: string]: unknown;
+};
+
 export type ToolName = 'ping' | 'get_autocomplete_suggestions' | 'get_trend_index';
 
 interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
@@ -11,6 +20,7 @@ interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
   description: string;
   schema: TInput;
   handler: (input: z.infer<TInput>, context: InvocationContext) => Promise<ToolResponse<TOutput>>;
+  inputJsonSchema: JsonSchemaObject;
 }
 
 interface InvocationContext {
@@ -37,6 +47,12 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     name: 'ping',
     description: 'Health check to confirm the MCP server is reachable.',
     schema: z.object({}).optional(),
+    inputJsonSchema: {
+      type: 'object',
+      description: 'No arguments are required for the ping tool.',
+      properties: {},
+      additionalProperties: false,
+    },
     handler: async (_input, context) => ({
       ok: true,
       data: {
@@ -51,6 +67,17 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     name: 'get_autocomplete_suggestions',
     description: 'Return Google Autocomplete suggestions for the provided query.',
     schema: autocompleteInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['query'],
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search phrase to expand using Google Autocomplete.',
+        },
+      },
+    },
     handler: async (input, context) =>
       executeWithRateLimit('get_autocomplete_suggestions', context, async () =>
         fetchAutocompleteSuggestions(input.query),
@@ -60,6 +87,33 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     name: 'get_trend_index',
     description: 'Fetch Google Trends interest-over-time data for the supplied keyword.',
     schema: trendIndexInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['keyword'],
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'Primary search term to query in Google Trends.',
+        },
+        geo: {
+          type: 'string',
+          description: 'Optional ISO-3166 region code, e.g. US.',
+        },
+        timeRange: {
+          type: 'string',
+          description: 'Optional Google Trends time range such as "today 12-m".',
+        },
+        category: {
+          type: 'integer',
+          description: 'Optional Google Trends category identifier.',
+        },
+        property: {
+          type: 'string',
+          description: 'Optional Google property filter (for example "youtube").',
+        },
+      },
+    },
     handler: async (input, context) =>
       executeWithRateLimit('get_trend_index', context, async () =>
         fetchTrendIndex({
@@ -217,7 +271,9 @@ function toCallToolResult(response: ToolResponse, toolName: ToolName): McpCallTo
     const meta = { ...(response.meta ?? {}), tool: toolName };
     const result: McpCallToolResult = {
       content,
-      structuredContent: response.data,
+      ...(typeof response.data === 'object' && response.data !== null
+        ? { structuredContent: response.data }
+        : {}),
       _meta: meta,
     };
     return result;
@@ -231,6 +287,7 @@ function toCallToolResult(response: ToolResponse, toolName: ToolName): McpCallTo
   return {
     content: [{ type: 'text', text: contentText }],
     isError: true,
+    structuredContent: { error: response.error },
     _meta: { tool: toolName, error: response.error },
   };
 }
@@ -350,6 +407,18 @@ export function listTools(): Array<{ name: ToolName; description: string }> {
   return toolCatalog.map((tool) => ({ name: tool.name, description: tool.description }));
 }
 
+export function listToolMetadata(): Array<{
+  name: ToolName;
+  description: string;
+  inputSchema: JsonSchemaObject;
+}> {
+  return toolCatalog.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputJsonSchema,
+  }));
+}
+
 export async function invokeTool(
   toolName: string,
   input: unknown,
@@ -389,4 +458,8 @@ export function resolveStatusCode(response: ToolResponse): number {
     return 200;
   }
   return rateLimitCodes[response.error.code] ?? 500;
+}
+
+export function toMcpCallToolResult(response: ToolResponse, toolName: ToolName): McpCallToolResult {
+  return toCallToolResult(response, toolName);
 }

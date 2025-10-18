@@ -31,6 +31,10 @@ The development server defaults to `http://localhost:3000`.
 All tools share the same POST endpoint: `POST /api/mcp` with JSON payload `{"tool": "<name>", "input": { ... } }`. Responses
 follow the `ToolResponse` shape (`{ ok: true, data }` or `{ ok: false, error }`).
 
+The server also understands the [MCP Streamable HTTP JSON-RPC envelope](https://modelcontextprotocol.io/specification/latest),
+so agents that negotiate with `initialize`, `tools/list`, and `tools/call` will work without any proxy layer. The legacy JSON
+format shown below remains supported for quick manual testing.
+
 ### `ping`
 
 ```json
