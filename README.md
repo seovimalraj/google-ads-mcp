@@ -7,8 +7,8 @@ careful validation and rate limiting.
 
 ## Features
 
-- **Google Autocomplete**: Expands a seed query into the real phrases Google users type right now.
-- **Google Trends**: Returns interest-over-time indices for any keyword with optional geo and category filters.
+- **Google Autocomplete**: Expands up to three seed queries into the real phrases Google users type right now.
+- **Google Trends**: Returns interest-over-time indices for up to three keywords with optional geo and category filters.
 - **Next.js 15 App Router** with strict TypeScript, ESLint, and Prettier configuration.
 - **Structured MCP responses** with consistent error handling and lightweight rate limiting.
 
@@ -54,12 +54,13 @@ Result:
 
 ### `get_autocomplete_suggestions`
 
-Fetches live suggestions from Google Suggest for the provided query.
+Fetches live suggestions from Google Suggest. You can continue sending a single `query` or batch up to three with the `queries`
+array.
 
 ```json
 {
   "tool": "get_autocomplete_suggestions",
-  "input": { "query": "toroidal transformer" }
+  "input": { "queries": ["toroidal transformer", "toroidal core"] }
 }
 ```
 
@@ -69,11 +70,25 @@ Result:
 {
   "ok": true,
   "data": {
-    "query": "toroidal transformer",
-    "suggestions": [
+    "queries": ["toroidal transformer", "toroidal core"],
+    "results": [
+      {
+        "query": "toroidal transformer",
+        "suggestions": [
+          "toroidal transformer winding",
+          "toroidal transformer core"
+        ]
+      },
+      {
+        "query": "toroidal core",
+        "suggestions": ["toroidal core material", "toroidal core design"]
+      }
+    ],
+    "combinedSuggestions": [
       "toroidal transformer winding",
       "toroidal transformer core",
-      "toroidal transformer advantages"
+      "toroidal core material",
+      "toroidal core design"
     ]
   }
 }
@@ -82,13 +97,13 @@ Result:
 ### `get_trend_index`
 
 Returns Google Trends interest-over-time data. Optional fields (`geo`, `timeRange`, `category`, `property`) map directly to the
-underlying Trends API.
+underlying Trends API. Provide `keyword` for backwards compatibility or batch up to three terms with `keywords`.
 
 ```json
 {
   "tool": "get_trend_index",
   "input": {
-    "keyword": "toroidal transformer",
+    "keywords": ["toroidal transformer", "toroidal core"],
     "timeRange": "today 12-m",
     "geo": "US"
   }
@@ -102,14 +117,31 @@ Result (truncated):
   "ok": true,
   "data": {
     "keyword": "toroidal transformer",
+    "keywords": ["toroidal transformer", "toroidal core"],
     "geo": "US",
     "timeRange": "today 12-m",
-    "seriesLabels": ["toroidal transformer"],
-    "averages": [42],
-    "points": [{ "time": "1704067200", "formattedTime": "Dec 31, 2023", "values": [37] }]
+    "seriesLabels": ["toroidal transformer", "toroidal core"],
+    "averages": [42, 18],
+    "points": [
+      {
+        "time": "1704067200",
+        "formattedTime": "Dec 31, 2023",
+        "values": [37, 12]
+      }
+    ]
   }
 }
 ```
+
+## Advanced Google data sources to explore
+
+Looking to extend the MCP server further? Google exposes several additional surfaces that complement autocomplete and Trends:
+
+- **Search Console API**: Pull verified site performance data (clicks, impressions, CTR) to validate organic opportunities.
+- **People Also Ask / Related Searches**: Scrape or proxy the SERP modules for question-driven keyword ideation.
+- **Google Ads Keyword Planner**: Estimate paid search volume, bid ranges, and competition scores when you have Ads access.
+- **Google Discover and News trends**: Track emerging stories for content roadmaps using the Discover feed and Google News APIs.
+- **Google Analytics Data API**: Blend on-site engagement metrics with keyword demand to prioritise high-impact opportunities.
 
 ## Rate limiting & errors
 
