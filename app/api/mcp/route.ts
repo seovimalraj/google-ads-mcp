@@ -22,7 +22,7 @@ const SERVER_CAPABILITIES = {
 };
 
 const SERVER_INSTRUCTIONS =
-  'Tools expose Google Autocomplete and Google Trends data. Use get_autocomplete_suggestions to expand a query and get_trend_index to retrieve interest over time.';
+  'Tools expose Google Search Console keyword clusters plus Google Autocomplete and Google Trends data. Use get_keyword_clusters for content planning, get_autocomplete_suggestions to expand a query, and get_trend_index to retrieve interest over time.';
 
 export const runtime = 'nodejs';
 

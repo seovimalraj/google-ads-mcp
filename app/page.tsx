@@ -142,7 +142,10 @@ export default function HomePage() {
           <li>
             Deploy or run locally with <InlineCode>pnpm dev</InlineCode> (Node.js 18.18+).
           </li>
-          <li>No credentials needed—Autocomplete and Trends rely on public endpoints.</li>
+          <li>
+            Provide Search Console service account credentials for clustering; Autocomplete and
+            Trends continue to rely on public endpoints.
+          </li>
           <li>
             Add the MCP server URL <InlineCode>{baseUrl}/api/mcp</InlineCode> to ChatGPT Developer
             Mode and invoke the sample payloads below.
@@ -159,7 +162,7 @@ export default function HomePage() {
         <pre style={codeStyle}>
           {`{
   "status": "ok",
-  "tools": ["ping", "get_autocomplete_suggestions", "get_trend_index"]
+  "tools": ["ping", "get_autocomplete_suggestions", "get_trend_index", "get_keyword_clusters"]
 }`}
         </pre>
       </section>
@@ -213,6 +216,23 @@ export default function HomePage() {
     "keyword": "toroidal transformer",
     "timeRange": "today 12-m",
     "geo": "US"
+  }
+}`}
+                </pre>
+              </td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>
+                <strong>Keyword clusters</strong>
+              </td>
+              <td style={tdStyle}>
+                <pre style={codeStyle}>
+                  {`{
+  "tool": "get_keyword_clusters",
+  "input": {
+    "query": "solar panels",
+    "siteUrl": "https://example.com/",
+    "timeRange": "last_90_days"
   }
 }`}
                 </pre>

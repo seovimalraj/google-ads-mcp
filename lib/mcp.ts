@@ -1,7 +1,12 @@
 import { z, ZodDefault, ZodEffects, ZodNullable, ZodObject, ZodOptional } from 'zod';
 import type { ToolError, ToolResponse } from '@/types';
 import { fetchAutocompleteSuggestions, fetchTrendIndex, UpstreamError } from './search';
-import { autocompleteInputSchema, trendIndexInputSchema } from './schemas';
+import {
+  autocompleteInputSchema,
+  keywordClustersInputSchema,
+  trendIndexInputSchema,
+} from './schemas';
+import { getKeywordClusters } from '@/src/tools/get_keyword_clusters';
 import { consumeRateLimit } from './ratelimit';
 
 type JsonSchemaObject = {
@@ -13,7 +18,11 @@ type JsonSchemaObject = {
   [key: string]: unknown;
 };
 
-export type ToolName = 'ping' | 'get_autocomplete_suggestions' | 'get_trend_index';
+export type ToolName =
+  | 'ping'
+  | 'get_autocomplete_suggestions'
+  | 'get_trend_index'
+  | 'get_keyword_clusters';
 
 interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
   name: ToolName;
@@ -85,19 +94,16 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           description: 'Batch up to three phrases to fetch suggestions in a single call.',
         },
       },
-      oneOf: [
-        { required: ['query'] },
-        { required: ['queries'] },
-      ],
+      oneOf: [{ required: ['query'] }, { required: ['queries'] }],
     },
     handler: async (input, context) =>
-          executeWithRateLimit(
-            'get_autocomplete_suggestions',
-            context,
-            async () => {
-              const results = await Promise.all(
-                input.queries.map((query: string) => fetchAutocompleteSuggestions(query)),
-              );
+      executeWithRateLimit(
+        'get_autocomplete_suggestions',
+        context,
+        async () => {
+          const results = await Promise.all(
+            input.queries.map((query: string) => fetchAutocompleteSuggestions(query)),
+          );
           const combinedSuggestions = Array.from(
             new Set(results.flatMap((result) => result.suggestions)),
           );
@@ -158,10 +164,7 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           description: 'Optional Google property filter (for example "youtube").',
         },
       },
-      oneOf: [
-        { required: ['keyword'] },
-        { required: ['keywords'] },
-      ],
+      oneOf: [{ required: ['keyword'] }, { required: ['keywords'] }],
     },
     handler: async (input, context) =>
       executeWithRateLimit(
@@ -176,6 +179,55 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
             property: input.property,
           }),
         input.keywords.length,
+      ),
+  },
+  {
+    name: 'get_keyword_clusters',
+    description:
+      'Cluster Search Console queries into actionable groups using token overlap and shared ranked pages.',
+    schema: keywordClustersInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Optional seed query used to expand candidates with Google Autocomplete.',
+        },
+        siteUrl: {
+          type: 'string',
+          description: 'Verified site URL in Google Search Console (include protocol).',
+        },
+        timeRange: {
+          type: 'string',
+          description:
+            'Date window for Search Console data (for example last_90_days or custom:2024-01-01:2024-03-31).',
+          default: 'last_90_days',
+        },
+        includeAutocomplete: {
+          type: 'boolean',
+          description: 'Whether to enrich clusters with Google Autocomplete expansions.',
+          default: true,
+        },
+        geo: {
+          type: 'string',
+          description: 'Geographic code used for context when seeding autocomplete suggestions.',
+          default: 'US',
+        },
+        maxKeywords: {
+          type: 'number',
+          description: 'Maximum number of normalised keywords to cluster (capped at 5000).',
+          default: 2000,
+        },
+      },
+      required: ['siteUrl'],
+    },
+    handler: async (input, context) =>
+      executeWithRateLimit(
+        'get_keyword_clusters',
+        context,
+        async () => getKeywordClusters(input),
+        Math.max(1, Math.ceil(input.maxKeywords / 500)),
       ),
   },
 ];
