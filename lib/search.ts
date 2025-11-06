@@ -68,7 +68,7 @@ interface TimelineEntry {
 }
 
 export interface TrendIndexOptions {
-  keyword: string;
+  keywords: string[];
   geo?: string;
   timeRange?: string;
   category?: number;
@@ -83,6 +83,7 @@ export interface TrendIndexPoint {
 
 export interface TrendIndexResult {
   keyword: string;
+  keywords: string[];
   geo: string;
   timeRange: string;
   seriesLabels: string[];
@@ -91,13 +92,15 @@ export interface TrendIndexResult {
 }
 
 export async function fetchTrendIndex(options: TrendIndexOptions): Promise<TrendIndexResult> {
-  const comparisonItem = [
-    {
-      keyword: options.keyword,
-      geo: options.geo ?? '',
-      time: options.timeRange ?? 'today 12-m',
-    },
-  ];
+  if (!Array.isArray(options.keywords) || options.keywords.length === 0) {
+    throw new Error('At least one keyword is required.');
+  }
+
+  const comparisonItem = options.keywords.map((keyword) => ({
+    keyword,
+    geo: options.geo ?? '',
+    time: options.timeRange ?? 'today 12-m',
+  }));
 
   const exploreParams = new URLSearchParams({
     hl: 'en-US',
@@ -210,6 +213,9 @@ export async function fetchTrendIndex(options: TrendIndexOptions): Promise<Trend
         )
       : [];
 
+  const resolvedSeriesLabels =
+    seriesLabels.length > 0 ? seriesLabels : [...options.keywords];
+
   const averages: number[] = Array.isArray(defaultTimeline?.averages)
     ? defaultTimeline.averages.filter(
         (value: unknown): value is number => typeof value === 'number',
@@ -236,10 +242,11 @@ export async function fetchTrendIndex(options: TrendIndexOptions): Promise<Trend
   const resolvedTime = requestTime ?? options.timeRange ?? 'today 12-m';
 
   return {
-    keyword: options.keyword,
+    keyword: options.keywords[0] ?? '',
+    keywords: options.keywords,
     geo: resolvedGeo,
     timeRange: resolvedTime,
-    seriesLabels,
+    seriesLabels: resolvedSeriesLabels,
     averages,
     points,
   };

@@ -70,17 +70,54 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     inputJsonSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['query'],
       properties: {
         query: {
           type: 'string',
           description: 'Search phrase to expand using Google Autocomplete.',
         },
+        queries: {
+          type: 'array',
+          items: {
+            type: 'string',
+          },
+          minItems: 1,
+          maxItems: 3,
+          description: 'Batch up to three phrases to fetch suggestions in a single call.',
+        },
       },
+      oneOf: [
+        { required: ['query'] },
+        { required: ['queries'] },
+      ],
     },
     handler: async (input, context) =>
-      executeWithRateLimit('get_autocomplete_suggestions', context, async () =>
-        fetchAutocompleteSuggestions(input.query),
+          executeWithRateLimit(
+            'get_autocomplete_suggestions',
+            context,
+            async () => {
+              const results = await Promise.all(
+                input.queries.map((query: string) => fetchAutocompleteSuggestions(query)),
+              );
+          const combinedSuggestions = Array.from(
+            new Set(results.flatMap((result) => result.suggestions)),
+          );
+          if (results.length === 1) {
+            const [first] = results;
+            return {
+              query: first.query,
+              suggestions: first.suggestions,
+              queries: input.queries,
+              results,
+              combinedSuggestions,
+            };
+          }
+          return {
+            queries: input.queries,
+            results,
+            combinedSuggestions,
+          };
+        },
+        input.queries.length,
       ),
   },
   {
@@ -90,11 +127,19 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
     inputJsonSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['keyword'],
       properties: {
         keyword: {
           type: 'string',
           description: 'Primary search term to query in Google Trends.',
+        },
+        keywords: {
+          type: 'array',
+          items: {
+            type: 'string',
+          },
+          minItems: 1,
+          maxItems: 3,
+          description: 'Compare up to three search terms in a single timeline request.',
         },
         geo: {
           type: 'string',
@@ -113,16 +158,24 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           description: 'Optional Google property filter (for example "youtube").',
         },
       },
+      oneOf: [
+        { required: ['keyword'] },
+        { required: ['keywords'] },
+      ],
     },
     handler: async (input, context) =>
-      executeWithRateLimit('get_trend_index', context, async () =>
-        fetchTrendIndex({
-          keyword: input.keyword,
-          geo: input.geo,
-          timeRange: input.timeRange,
-          category: input.category,
-          property: input.property,
-        }),
+      executeWithRateLimit(
+        'get_trend_index',
+        context,
+        async () =>
+          fetchTrendIndex({
+            keywords: input.keywords,
+            geo: input.geo,
+            timeRange: input.timeRange,
+            category: input.category,
+            property: input.property,
+          }),
+        input.keywords.length,
       ),
   },
 ];
@@ -308,8 +361,9 @@ async function executeWithRateLimit<T>(
   tool: ToolName,
   context: InvocationContext,
   executor: () => Promise<T>,
+  weight = 1,
 ): Promise<ToolResponse<T>> {
-  const rateOutcome = applyRateLimit(tool, context);
+  const rateOutcome = applyRateLimit(tool, context, weight);
   if (!rateOutcome.success) {
     return rateOutcome.response;
   }

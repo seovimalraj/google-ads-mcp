@@ -87,11 +87,12 @@ async function run() {
   });
 
   const trend = await fetchTrendIndex({
-    keyword: 'toroidal transformer',
+    keywords: ['toroidal transformer'],
     geo: 'US',
     timeRange: 'today 12-m',
   });
   assert.equal(trend.keyword, 'toroidal transformer');
+  assert.deepEqual(trend.keywords, ['toroidal transformer']);
   assert.equal(trend.geo, 'US');
   assert.equal(trend.timeRange, 'today 12-m');
   assert.deepEqual(trend.seriesLabels, ['toroidal transformer']);
