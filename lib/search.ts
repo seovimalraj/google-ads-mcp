@@ -205,17 +205,17 @@ export async function fetchTrendIndex(options: TrendIndexOptions): Promise<Trend
     points.push({ time, formattedTime, values });
   }
 
-  const seriesLabels: string[] = Array.isArray(defaultTimeline?.legend)
-    ? defaultTimeline.legend.filter((label: unknown): label is string => typeof label === 'string')
-    : Array.isArray(defaultTimeline?.seriesLabels)
-      ? defaultTimeline.seriesLabels.filter(
-          (label: unknown): label is string => typeof label === 'string',
-        )
-      : [];
-
-  const resolvedSeriesLabels =
-    seriesLabels.length > 0 ? seriesLabels : [...options.keywords];
-
+  let seriesLabels: string[] = [];
+  if (Array.isArray(defaultTimeline?.legend)) {
+    seriesLabels = defaultTimeline.legend.filter(
+      (label: unknown): label is string => typeof label === 'string',
+    );
+  } else if (Array.isArray(defaultTimeline?.seriesLabels)) {
+    seriesLabels = defaultTimeline.seriesLabels.filter(
+      (label: unknown): label is string => typeof label === 'string',
+    );
+  }
+  const resolvedSeriesLabels = seriesLabels.length > 0 ? seriesLabels : [...options.keywords];
   const averages: number[] = Array.isArray(defaultTimeline?.averages)
     ? defaultTimeline.averages.filter(
         (value: unknown): value is number => typeof value === 'number',

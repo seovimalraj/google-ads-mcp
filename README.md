@@ -1,14 +1,15 @@
 # Google Search MCP Server
 
 A Next.js App Router deployment that exposes a [Model Context Protocol (MCP)](https://platform.openai.com/docs/mcp/overview)
-server focused on organic search research. The server provides two tools—`get_autocomplete_suggestions` and `get_trend_index`—
-built on top of Google Suggest and Google Trends. No OAuth credentials are required; both tools rely on public endpoints with
-careful validation and rate limiting.
+server focused on organic search research. The server provides three tools—`get_autocomplete_suggestions`, `get_trend_index`,
+and `get_keyword_clusters`—built on top of Google Suggest, Google Trends, and Search Console. Autocomplete and Trends rely on
+public endpoints, while clustering authenticates with a Search Console service account.
 
 ## Features
 
 - **Google Autocomplete**: Expands up to three seed queries into the real phrases Google users type right now.
 - **Google Trends**: Returns interest-over-time indices for up to three keywords with optional geo and category filters.
+- **Keyword clustering**: Merges Search Console queries and Google Autocomplete expansions into intent-driven groups with page recommendations.
 - **Next.js 15 App Router** with strict TypeScript, ESLint, and Prettier configuration.
 - **Structured MCP responses** with consistent error handling and lightweight rate limiting.
 
@@ -16,6 +17,7 @@ careful validation and rate limiting.
 
 - Node.js 18.18 or newer.
 - `pnpm` or `npm` for dependency management.
+- Google Search Console service account credentials (only for `get_keyword_clusters`).
 
 ## Getting started locally
 
@@ -25,6 +27,15 @@ pnpm dev
 ```
 
 The development server defaults to `http://localhost:3000`.
+
+### Search Console credentials
+
+The keyword clustering tool queries the Google Search Console Search Analytics API using a service account. Set the following environment variables before running the server:
+
+- `GOOGLE_CLIENT_EMAIL` – service account email with access to the Search Console property.
+- `GOOGLE_PRIVATE_KEY` – private key for the service account (escape newlines as `\n` in `.env`).
+
+Alternative variable names (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_KEY`, and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`) are also recognised for compatibility.
 
 ## MCP tools
 
@@ -133,6 +144,53 @@ Result (truncated):
 }
 ```
 
+### `get_keyword_clusters`
+
+Produces intent-based keyword clusters by combining Google Search Console performance data with optional Google Autocomplete expansions. Provide a verified `siteUrl` and an optional seed `query`. The tool scores clusters, maps them to the best-performing page, and suggests next steps.
+
+```json
+{
+  "tool": "get_keyword_clusters",
+  "input": {
+    "query": "solar panels",
+    "siteUrl": "https://example.com/",
+    "timeRange": "last_90_days",
+    "maxKeywords": 1500
+  }
+}
+```
+
+Result (truncated):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "query": "solar panels",
+    "siteUrl": "https://example.com/",
+    "clusters": [
+      {
+        "label": "solar panel installation",
+        "priority": 78,
+        "representativeKeyword": "solar panel installation cost",
+        "mappedPage": { "type": "existing", "url": "https://example.com/solar/installation" },
+        "rollup": {
+          "keywords": 9,
+          "sumImpressions": 18400,
+          "sumClicks": 1240,
+          "avgCtr": 0.045,
+          "avgPosition": 6.2
+        },
+        "recommendations": [
+          "Update page for \"solar panel installation\" with FAQs and subtopics.",
+          "Add internal links from related pages."
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## Advanced Google data sources to explore
 
 Looking to extend the MCP server further? Google exposes several additional surfaces that complement autocomplete and Trends:
@@ -156,7 +214,7 @@ Looking to extend the MCP server further? Google exposes several additional surf
 Add a remote MCP server in ChatGPT using the following configuration:
 
 - **Server URL**: `https://<your-app>.vercel.app/api/mcp`
-- **Tools**: Automatically discovered (`ping`, `get_autocomplete_suggestions`, `get_trend_index`).
+- **Tools**: Automatically discovered (`ping`, `get_autocomplete_suggestions`, `get_trend_index`, `get_keyword_clusters`).
 - **Auth flow**: None required—both tools rely on public Google endpoints.
 
 Example invocation in ChatGPT:
@@ -168,8 +226,8 @@ Example invocation in ChatGPT:
 }
 ```
 
-Expect a JSON payload with interest-over-time points that you can combine with autocomplete suggestions to build keyword
-clusters or validate seasonal demand.
+Expect a JSON payload with interest-over-time points that you can combine with autocomplete suggestions or the
+`get_keyword_clusters` tool to validate seasonal demand and prioritise content.
 
 ## Troubleshooting
 
@@ -183,4 +241,5 @@ clusters or validate seasonal demand.
 
 - [x] Autocomplete MCP tool returning Google Suggest phrases.
 - [x] Trends MCP tool returning interest-over-time data.
+- [x] Keyword clustering MCP tool grouping Search Console queries into recommendations.
 - [x] README covering setup, usage, and troubleshooting.

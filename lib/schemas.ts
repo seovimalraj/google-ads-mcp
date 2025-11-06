@@ -61,5 +61,24 @@ export const trendIndexInputSchema = z
     property: data.property,
   }));
 
+export const keywordClustersInputSchema = z
+  .object({
+    query: keywordString.optional(),
+    siteUrl: z.string().url('siteUrl must be a valid URL.'),
+    timeRange: z.string().min(1).optional(),
+    includeAutocomplete: z.boolean().optional(),
+    geo: z.string().max(32).optional(),
+    maxKeywords: z.number().int().min(1).max(5000).optional(),
+  })
+  .transform((data) => ({
+    query: data.query?.trim() ?? '',
+    siteUrl: data.siteUrl,
+    timeRange: data.timeRange ?? 'last_90_days',
+    includeAutocomplete: data.includeAutocomplete ?? true,
+    geo: data.geo ?? 'US',
+    maxKeywords: data.maxKeywords ?? 2000,
+  }));
+
 export type AutocompleteInput = z.infer<typeof autocompleteInputSchema>;
 export type TrendIndexInput = z.infer<typeof trendIndexInputSchema>;
+export type KeywordClustersInput = z.infer<typeof keywordClustersInputSchema>;
