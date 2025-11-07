@@ -43,7 +43,7 @@ const codeStyle: CSSProperties = {
 
 const listStyle: CSSProperties = {
   display: 'grid',
-  gap: '1.25rem',
+  gap: '1.1rem',
   paddingLeft: '1.25rem',
   margin: '0',
 };
@@ -96,6 +96,23 @@ const containerStyle: CSSProperties = {
   fontFamily: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };
 
+const featureGridStyle: CSSProperties = {
+  display: 'grid',
+  gap: '1rem',
+  marginTop: '1rem',
+};
+
+const featureItemStyle: CSSProperties = {
+  display: 'flex',
+  gap: '0.75rem',
+};
+
+const bulletStyle: CSSProperties = {
+  fontSize: '1.5rem',
+  lineHeight: 1,
+  marginTop: '0.1rem',
+};
+
 const rawBaseUrl = process.env.NEXTAUTH_URL?.trim();
 const baseUrlSource =
   rawBaseUrl && rawBaseUrl.length > 0 ? rawBaseUrl : 'https://your-app.vercel.app';
@@ -131,24 +148,64 @@ export default function HomePage() {
 
       <h1 style={headingStyle}>{appName}</h1>
       <p style={subheadingStyle}>
-        This deployment exposes a Model Context Protocol server with two lightweight tools sourced
-        directly from Google. Pull live autocomplete suggestions and Google Trends indices without
-        OAuth or external databases—perfect for keyword discovery inside ChatGPT Developer Mode.
+        Operate a Model Context Protocol server that taps directly into Google Suggest, Google
+        Trends, and Search Console data. Batch keyword discovery, trend monitoring, and clustering
+        workflows run inside ChatGPT or any MCP-compatible client—no custom middleware required.
       </p>
+
+      <section style={cardStyle}>
+        <h2 style={sectionTitleStyle}>Recent updates</h2>
+        <div style={featureGridStyle}>
+          <div style={featureItemStyle}>
+            <span style={bulletStyle} aria-hidden="true">
+              •
+            </span>
+            <p>
+              Autocomplete and Trends tools now accept single inputs (<InlineCode>query</InlineCode>{' '}
+              / <InlineCode>keyword</InlineCode>) or batched arrays (
+              <InlineCode>queries</InlineCode> / <InlineCode>keywords</InlineCode>) for faster
+              research loops.
+            </p>
+          </div>
+          <div style={featureItemStyle}>
+            <span style={bulletStyle} aria-hidden="true">
+              •
+            </span>
+            <p>
+              Keyword clustering combines Google Search Console metrics with optional autocomplete
+              expansions to recommend primary pages, supporting up to 1,500 terms per run.
+            </p>
+          </div>
+          <div style={featureItemStyle}>
+            <span style={bulletStyle} aria-hidden="true">
+              •
+            </span>
+            <p>
+              MCP responses include consistent success and error envelopes (
+              <InlineCode>{'{ ok, data }'}</InlineCode> / <InlineCode>{'{ ok, error }'}</InlineCode>
+              ) with matching HTTP and JSON-RPC behaviour.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Quick start</h2>
         <ol style={listStyle}>
           <li>
-            Deploy or run locally with <InlineCode>pnpm dev</InlineCode> (Node.js 18.18+).
+            Install dependencies and run locally with <InlineCode>pnpm install</InlineCode> then{' '}
+            <InlineCode>pnpm dev</InlineCode> (Node.js 18.18 or newer).
           </li>
           <li>
-            Provide Search Console service account credentials for clustering; Autocomplete and
-            Trends continue to rely on public endpoints.
+            Create a service account with access to your Search Console property and set{' '}
+            <InlineCode>GOOGLE_CLIENT_EMAIL</InlineCode> and{' '}
+            <InlineCode>GOOGLE_PRIVATE_KEY</InlineCode> (newline characters escaped as{' '}
+            <InlineCode>\n</InlineCode>). Alternate variable names are respected for backwards
+            compatibility.
           </li>
           <li>
-            Add the MCP server URL <InlineCode>{baseUrl}/api/mcp</InlineCode> to ChatGPT Developer
-            Mode and invoke the sample payloads below.
+            Add the MCP server endpoint <InlineCode>{baseUrl}/api/mcp</InlineCode> to ChatGPT
+            Developer Mode or another MCP client and invoke the sample payloads below.
           </li>
         </ol>
       </section>
@@ -156,7 +213,7 @@ export default function HomePage() {
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Health check</h2>
         <p>
-          Call <InlineCode>GET {baseUrl}/api/mcp</InlineCode> to list the available tools. A
+          Call <InlineCode>GET {baseUrl}/api/mcp</InlineCode> to confirm the server is online. A
           successful response looks like:
         </p>
         <pre style={codeStyle}>
@@ -198,7 +255,7 @@ export default function HomePage() {
                   {`{
   "tool": "get_autocomplete_suggestions",
   "input": {
-    "query": "toroidal transformer"
+    "queries": ["toroidal transformer", "toroidal core"]
   }
 }`}
                 </pre>
@@ -213,7 +270,7 @@ export default function HomePage() {
                   {`{
   "tool": "get_trend_index",
   "input": {
-    "keyword": "toroidal transformer",
+    "keywords": ["toroidal transformer", "toroidal core"],
     "timeRange": "today 12-m",
     "geo": "US"
   }
@@ -232,7 +289,8 @@ export default function HomePage() {
   "input": {
     "query": "solar panels",
     "siteUrl": "https://example.com/",
-    "timeRange": "last_90_days"
+    "timeRange": "last_90_days",
+    "maxKeywords": 1500
   }
 }`}
                 </pre>
@@ -245,11 +303,11 @@ export default function HomePage() {
       <section style={{ ...cardStyle, marginBottom: 0 }}>
         <h2 style={sectionTitleStyle}>Need help?</h2>
         <p>
-          Check the{' '}
+          Review the{' '}
           <a style={linkStyle} href="https://github.com/openai/google-search-mcp">
             project README
           </a>{' '}
-          for setup details, troubleshooting steps, and deployment tips.
+          for deployment tips, troubleshooting guidance, and changelog-style updates.
         </p>
       </section>
     </main>
