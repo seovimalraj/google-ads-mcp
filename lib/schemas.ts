@@ -49,7 +49,8 @@ export const autocompleteInputSchema = z
     if (!hasQuery && !hasQueries && !hasKeyword && !hasKeywords) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Provide either "query", "queries", "keyword", or "keywords" with at least one entry.',
+        message:
+          'Provide either "query", "queries", "keyword", or "keywords" with at least one entry.',
         path: ['query'],
       });
     }
@@ -58,7 +59,7 @@ export const autocompleteInputSchema = z
     queries: pickKeywordArray(data.queries, data.keywords, data.query, data.keyword),
   }));
 
-export const trendIndexInputSchema = z
+const trendLikeInputSchema = z
   .object({
     keyword: keywordString.optional(),
     keywords: keywordList,
@@ -88,6 +89,9 @@ export const trendIndexInputSchema = z
     property: data.property,
   }));
 
+export const trendIndexInputSchema = trendLikeInputSchema;
+export const relatedQueriesInputSchema = trendLikeInputSchema;
+
 export const keywordClustersInputSchema = z
   .object({
     query: keywordString.optional(),
@@ -108,4 +112,5 @@ export const keywordClustersInputSchema = z
 
 export type AutocompleteInput = z.infer<typeof autocompleteInputSchema>;
 export type TrendIndexInput = z.infer<typeof trendIndexInputSchema>;
+export type RelatedQueriesInput = z.infer<typeof relatedQueriesInputSchema>;
 export type KeywordClustersInput = z.infer<typeof keywordClustersInputSchema>;

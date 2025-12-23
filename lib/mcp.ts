@@ -1,9 +1,15 @@
 import { z, ZodDefault, ZodEffects, ZodNullable, ZodObject, ZodOptional } from 'zod';
 import type { ToolError, ToolResponse } from '@/types';
-import { fetchAutocompleteSuggestions, fetchTrendIndex, UpstreamError } from './search';
+import {
+  fetchAutocompleteSuggestions,
+  fetchRelatedQueries,
+  fetchTrendIndex,
+  UpstreamError,
+} from './search';
 import {
   autocompleteInputSchema,
   keywordClustersInputSchema,
+  relatedQueriesInputSchema,
   trendIndexInputSchema,
 } from './schemas';
 import { getKeywordClusters } from '@/src/tools/get_keyword_clusters';
@@ -22,6 +28,7 @@ export type ToolName =
   | 'ping'
   | 'get_autocomplete_suggestions'
   | 'get_trend_index'
+  | 'get_related_queries'
   | 'get_keyword_clusters';
 
 interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
@@ -204,6 +211,68 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
         context,
         async () =>
           fetchTrendIndex({
+            keywords: input.keywords,
+            geo: input.geo,
+            timeRange: input.timeRange,
+            category: input.category,
+            property: input.property,
+          }),
+        input.keywords.length,
+      ),
+  },
+  {
+    name: 'get_related_queries',
+    description: 'Fetch Google Trends related queries (top and rising) for a keyword.',
+    schema: relatedQueriesInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'Primary search term to query in Google Trends.',
+        },
+        keywords: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
+          description: 'Keyword or keywords to seed related queries.',
+        },
+        geo: {
+          type: 'string',
+          description: 'Optional ISO-3166 region code, e.g. US.',
+        },
+        timeRange: {
+          type: 'string',
+          description: 'Optional Google Trends time range such as "today 12-m".',
+        },
+        category: {
+          type: 'integer',
+          description: 'Optional Google Trends category identifier.',
+        },
+        property: {
+          type: 'string',
+          description: 'Optional Google property filter (for example "youtube").',
+        },
+      },
+      oneOf: [{ required: ['keyword'] }, { required: ['keywords'] }],
+    },
+    handler: async (input, context) =>
+      executeWithRateLimit(
+        'get_related_queries',
+        context,
+        async () =>
+          fetchRelatedQueries({
             keywords: input.keywords,
             geo: input.geo,
             timeRange: input.timeRange,
