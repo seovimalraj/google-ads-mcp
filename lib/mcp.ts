@@ -1,9 +1,17 @@
 import { z, ZodDefault, ZodEffects, ZodNullable, ZodObject, ZodOptional } from 'zod';
 import type { ToolError, ToolResponse } from '@/types';
-import { fetchAutocompleteSuggestions, fetchTrendIndex, UpstreamError } from './search';
+import {
+  fetchAutocompleteSuggestions,
+  fetchRelatedQueries,
+  fetchRelatedTopics,
+  fetchTrendIndex,
+  UpstreamError,
+} from './search';
 import {
   autocompleteInputSchema,
   keywordClustersInputSchema,
+  relatedQueriesInputSchema,
+  relatedTopicsInputSchema,
   trendIndexInputSchema,
 } from './schemas';
 import { getKeywordClusters } from '@/src/tools/get_keyword_clusters';
@@ -22,6 +30,8 @@ export type ToolName =
   | 'ping'
   | 'get_autocomplete_suggestions'
   | 'get_trend_index'
+  | 'get_related_queries'
+  | 'get_related_topics'
   | 'get_keyword_clusters';
 
 interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput> {
@@ -84,6 +94,10 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           type: 'string',
           description: 'Search phrase to expand using Google Autocomplete.',
         },
+        keyword: {
+          type: 'string',
+          description: 'Single keyword alias for query.',
+        },
         queries: {
           type: 'array',
           items: {
@@ -93,8 +107,29 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           maxItems: 3,
           description: 'Batch up to three phrases to fetch suggestions in a single call.',
         },
+        keywords: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
+          description: 'Keyword alias for query/queries inputs.',
+        },
       },
-      oneOf: [{ required: ['query'] }, { required: ['queries'] }],
+      oneOf: [
+        { required: ['query'] },
+        { required: ['queries'] },
+        { required: ['keyword'] },
+        { required: ['keywords'] },
+      ],
     },
     handler: async (input, context) =>
       executeWithRateLimit(
@@ -139,12 +174,19 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           description: 'Primary search term to query in Google Trends.',
         },
         keywords: {
-          type: 'array',
-          items: {
-            type: 'string',
-          },
-          minItems: 1,
-          maxItems: 3,
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
           description: 'Compare up to three search terms in a single timeline request.',
         },
         geo: {
@@ -172,6 +214,130 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
         context,
         async () =>
           fetchTrendIndex({
+            keywords: input.keywords,
+            geo: input.geo,
+            timeRange: input.timeRange,
+            category: input.category,
+            property: input.property,
+          }),
+        input.keywords.length,
+      ),
+  },
+  {
+    name: 'get_related_queries',
+    description: 'Fetch Google Trends related queries (top and rising) for a keyword.',
+    schema: relatedQueriesInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'Primary search term to query in Google Trends.',
+        },
+        keywords: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
+          description: 'Keyword or keywords to seed related queries.',
+        },
+        geo: {
+          type: 'string',
+          description: 'Optional ISO-3166 region code, e.g. US.',
+        },
+        timeRange: {
+          type: 'string',
+          description: 'Optional Google Trends time range such as "today 12-m".',
+        },
+        category: {
+          type: 'integer',
+          description: 'Optional Google Trends category identifier.',
+        },
+        property: {
+          type: 'string',
+          description: 'Optional Google property filter (for example "youtube").',
+        },
+      },
+      oneOf: [{ required: ['keyword'] }, { required: ['keywords'] }],
+    },
+    handler: async (input, context) =>
+      executeWithRateLimit(
+        'get_related_queries',
+        context,
+        async () =>
+          fetchRelatedQueries({
+            keywords: input.keywords,
+            geo: input.geo,
+            timeRange: input.timeRange,
+            category: input.category,
+            property: input.property,
+          }),
+        input.keywords.length,
+      ),
+  },
+  {
+    name: 'get_related_topics',
+    description: 'Fetch Google Trends related topics (top and rising) for a keyword.',
+    schema: relatedTopicsInputSchema,
+    inputJsonSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'Primary search term to query in Google Trends.',
+        },
+        keywords: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
+          description: 'Keyword or keywords to seed related topics.',
+        },
+        geo: {
+          type: 'string',
+          description: 'Optional ISO-3166 region code, e.g. US.',
+        },
+        timeRange: {
+          type: 'string',
+          description: 'Optional Google Trends time range such as "today 12-m".',
+        },
+        category: {
+          type: 'integer',
+          description: 'Optional Google Trends category identifier.',
+        },
+        property: {
+          type: 'string',
+          description: 'Optional Google property filter (for example "youtube").',
+        },
+      },
+      oneOf: [{ required: ['keyword'] }, { required: ['keywords'] }],
+    },
+    handler: async (input, context) =>
+      executeWithRateLimit(
+        'get_related_topics',
+        context,
+        async () =>
+          fetchRelatedTopics({
             keywords: input.keywords,
             geo: input.geo,
             timeRange: input.timeRange,

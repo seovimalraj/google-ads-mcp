@@ -149,8 +149,9 @@ export default function HomePage() {
       <h1 style={headingStyle}>{appName}</h1>
       <p style={subheadingStyle}>
         Operate a Model Context Protocol server that taps directly into Google Suggest, Google
-        Trends, and Search Console data. Batch keyword discovery, trend monitoring, and clustering
-        workflows run inside ChatGPT or any MCP-compatible client—no custom middleware required.
+        Trends, and Search Console data. Discover related queries and topics, monitor trends, and
+        cluster search demand inside ChatGPT or any MCP-compatible client—no custom middleware
+        required.
       </p>
 
       <section style={cardStyle}>
@@ -172,8 +173,8 @@ export default function HomePage() {
               •
             </span>
             <p>
-              Keyword clustering combines Google Search Console metrics with optional autocomplete
-              expansions to recommend primary pages, supporting up to 1,500 terms per run.
+              Related queries and topics surface top and rising search terms from Google Trends to
+              expand SEO briefs, content hubs, and campaign plans.
             </p>
           </div>
           <div style={featureItemStyle}>
@@ -181,9 +182,8 @@ export default function HomePage() {
               •
             </span>
             <p>
-              MCP responses include consistent success and error envelopes (
-              <InlineCode>{'{ ok, data }'}</InlineCode> / <InlineCode>{'{ ok, error }'}</InlineCode>
-              ) with matching HTTP and JSON-RPC behaviour.
+              Keyword clustering combines Google Search Console metrics with optional autocomplete
+              expansions to recommend primary pages, supporting up to 5,000 terms per run.
             </p>
           </div>
         </div>
@@ -219,7 +219,7 @@ export default function HomePage() {
         <pre style={codeStyle}>
           {`{
   "status": "ok",
-  "tools": ["ping", "get_autocomplete_suggestions", "get_trend_index", "get_keyword_clusters"]
+  "tools": ["ping", "get_autocomplete_suggestions", "get_trend_index", "get_related_queries", "get_related_topics", "get_keyword_clusters"]
 }`}
         </pre>
       </section>
@@ -271,6 +271,40 @@ export default function HomePage() {
   "tool": "get_trend_index",
   "input": {
     "keywords": ["toroidal transformer", "toroidal core"],
+    "timeRange": "today 12-m",
+    "geo": "US"
+  }
+}`}
+                </pre>
+              </td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>
+                <strong>Related queries</strong>
+              </td>
+              <td style={tdStyle}>
+                <pre style={codeStyle}>
+                  {`{
+  "tool": "get_related_queries",
+  "input": {
+    "keyword": "solar panels",
+    "timeRange": "today 12-m",
+    "geo": "US"
+  }
+}`}
+                </pre>
+              </td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>
+                <strong>Related topics</strong>
+              </td>
+              <td style={tdStyle}>
+                <pre style={codeStyle}>
+                  {`{
+  "tool": "get_related_topics",
+  "input": {
+    "keyword": "solar panels",
     "timeRange": "today 12-m",
     "geo": "US"
   }
