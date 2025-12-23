@@ -84,6 +84,10 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           type: 'string',
           description: 'Search phrase to expand using Google Autocomplete.',
         },
+        keyword: {
+          type: 'string',
+          description: 'Single keyword alias for query.',
+        },
         queries: {
           type: 'array',
           items: {
@@ -93,8 +97,29 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           maxItems: 3,
           description: 'Batch up to three phrases to fetch suggestions in a single call.',
         },
+        keywords: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
+          description: 'Keyword alias for query/queries inputs.',
+        },
       },
-      oneOf: [{ required: ['query'] }, { required: ['queries'] }],
+      oneOf: [
+        { required: ['query'] },
+        { required: ['queries'] },
+        { required: ['keyword'] },
+        { required: ['keywords'] },
+      ],
     },
     handler: async (input, context) =>
       executeWithRateLimit(
@@ -139,12 +164,19 @@ const toolCatalog: ToolDefinition<z.ZodTypeAny, unknown>[] = [
           description: 'Primary search term to query in Google Trends.',
         },
         keywords: {
-          type: 'array',
-          items: {
-            type: 'string',
-          },
-          minItems: 1,
-          maxItems: 3,
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              minItems: 1,
+              maxItems: 3,
+            },
+            {
+              type: 'string',
+            },
+          ],
           description: 'Compare up to three search terms in a single timeline request.',
         },
         geo: {
