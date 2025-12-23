@@ -9,7 +9,15 @@ module.exports = {
     'plugin:prettier/recommended'
   ],
   rules: {
-    'prettier/prettier': ['error'],
+    'prettier/prettier': [
+      'error',
+      {
+        singleQuote: true,
+        trailingComma: 'all',
+        printWidth: 100,
+        semi: true
+      }
+    ],
     '@typescript-eslint/no-explicit-any': 'off'
   }
 };
